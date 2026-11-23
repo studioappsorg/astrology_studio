@@ -11,7 +11,7 @@
 
 [project]
 name = "astrologystudio"
-version = "1.15.6"
+version = "1.15.7"
 description = "Astrology charts and cosmobiology, self-hosted. Calculations by ephemeralREST."
 readme = "README.md"
 license = "MIT"
@@ -26,7 +26,8 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
-dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11"]
+# fonttools and brotli are for web/fonts/make-glyph-font.py, which rebuilds the symbol font.
+dev = ["pytest>=8", "ruff>=0.6", "mypy>=1.11", "fonttools>=4.47", "brotli>=1.1"]
 e2e = ["playwright>=1.45", "uvicorn>=0.30"]
 
 [project.scripts]

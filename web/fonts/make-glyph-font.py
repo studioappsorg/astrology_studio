@@ -12,8 +12,10 @@ do with astrology is never drawn with it.
 The OFL forbids a modified version from using the reserved name "Astronomicon", hence the new
 name. The copyright notice and licence travel with it (OFL.txt and the font's own metadata).
 
-    pip install fonttools brotli
-    python web/fonts/make-glyph-font.py path/to/Astronomicon.ttf
+    .venv/bin/python web/fonts/make-glyph-font.py path/to/Astronomicon.ttf
+
+(on Windows, .venv/Scripts/python). fonttools and brotli come with the development setup
+(server[dev], which F5 installs); elsewhere, pip install fonttools brotli first.
 
 writes web/fonts/StudioAstroGlyphs.woff2. Download Astronomicon from
 https://astronomicon.co/en/astronomicon-fonts/ (version 1.1).
@@ -98,9 +100,7 @@ def main(source: str) -> None:
         elif record.nameID == 6:
             record.string = FAMILY.replace(" ", "")
         elif record.nameID == 5:
-            record.string = (
-                "Version 1.1; derived from Astronomicon 1.1 by Roberto Corona"
-            )
+            record.string = "Version 1.1; derived from Astronomicon 1.1 by Roberto Corona"
     out = Path(__file__).with_name("StudioAstroGlyphs.woff2")
     font.save(out)
     print(f"Wrote {out} ({out.stat().st_size} bytes, {len(unicode_map)} symbols)")
