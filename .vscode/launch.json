@@ -1,0 +1,95 @@
+{
+  // Press F5 ("AstrologyStudio"). The first time, it makes the Python environment and installs
+  // the web app's packages (a minute or two); after that it starts in seconds. Everything shows
+  // in the Debug Console and the browser opens when the server is ready.
+  // The two "Server" configurations stop in Python (and web) breakpoints; use them once the
+  // first F5 has made .venv.
+  // Port 8100, so it can run alongside MailStudio (8080), LedgerStudio (8090) and FormStudio (8110).
+  "version": "0.2.0",
+  "configurations": [
+    {
+      // F5. Works on a fresh copy: sets up what's needed, then runs the server and opens the browser.
+      "name": "AstrologyStudio",
+      "type": "node",
+      "request": "launch",
+      "program": "${workspaceFolder}/scripts/dev.mjs",
+      "cwd": "${workspaceFolder}",
+      "console": "internalConsole",
+      "outputCapture": "std",
+      "skipFiles": ["<node_internals>/**"],
+      "serverReadyAction": {
+        "pattern": "Uvicorn running on https?://[^:]+:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "openExternally"
+      }
+    },
+    {
+      "name": "Server (Python breakpoints)",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "astrologystudio.cli",
+      "args": ["serve", "--port", "8100"],
+      "preLaunchTask": "setup: if needed",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ASTROLOGYSTUDIO_DATA_DIR": "${workspaceFolder}/data",
+        "ASTROLOGYSTUDIO_BASE_URL": "http://localhost:8100",
+        // The server builds the web app and rebuilds it whenever you save.
+        "ASTROLOGYSTUDIO_WEB_WATCH": "1",
+        // Optional: set ASTROLOGYSTUDIO_EPHEMERAL_URL on your PC, or enter the
+        // ephemeralREST address in Settings after creating the owner account.
+        "ASTROLOGYSTUDIO_EPHEMERAL_URL": "${env:ASTROLOGYSTUDIO_EPHEMERAL_URL}"
+      },
+      "justMyCode": true,
+      "console": "internalConsole",
+      "serverReadyAction": {
+        "pattern": "Uvicorn running on https?://[^:]+:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "openExternally"
+      }
+    },
+    {
+      "name": "Server + debug the web app in Edge",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "astrologystudio.cli",
+      "args": ["serve", "--port", "8100"],
+      "preLaunchTask": "setup: if needed",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "cwd": "${workspaceFolder}",
+      "env": {
+        "ASTROLOGYSTUDIO_DATA_DIR": "${workspaceFolder}/data",
+        "ASTROLOGYSTUDIO_BASE_URL": "http://localhost:8100",
+        // The server builds the web app and rebuilds it whenever you save.
+        "ASTROLOGYSTUDIO_WEB_WATCH": "1",
+        // Optional: set ASTROLOGYSTUDIO_EPHEMERAL_URL on your PC, or enter the
+        // ephemeralREST address in Settings after creating the owner account.
+        "ASTROLOGYSTUDIO_EPHEMERAL_URL": "${env:ASTROLOGYSTUDIO_EPHEMERAL_URL}"
+      },
+      "justMyCode": true,
+      "console": "internalConsole",
+      "serverReadyAction": {
+        "pattern": "Uvicorn running on https?://[^:]+:([0-9]+)",
+        "uriFormat": "http://localhost:%s",
+        "action": "debugWithEdge",
+        "webRoot": "${workspaceFolder}/web/dist"
+      }
+    },
+    {
+      "name": "Tests: this file",
+      "type": "debugpy",
+      "request": "launch",
+      "module": "pytest",
+      "preLaunchTask": "setup: if needed",
+      "python": "${workspaceFolder}/.venv/bin/python",
+      "windows": { "python": "${workspaceFolder}\\.venv\\Scripts\\python.exe" },
+      "args": ["-q", "${file}"],
+      "cwd": "${workspaceFolder}/server",
+      "justMyCode": false,
+      "console": "internalConsole"
+    }
+  ]
+}

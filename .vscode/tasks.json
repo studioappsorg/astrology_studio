@@ -1,0 +1,59 @@
+{
+  // Terminal → Run Task… lists these.
+  "version": "2.0.0",
+  "tasks": [
+    {
+      // F5 runs this first. It does nothing when everything is already installed.
+      "label": "setup: if needed",
+      "type": "process",
+      "command": "python3",
+      "args": ["scripts/dev_setup.py"],
+      "windows": { "command": "py", "args": ["-3", "scripts\\dev_setup.py"] },
+      "options": { "cwd": "${workspaceFolder}" },
+      "presentation": { "reveal": "silent", "revealProblems": "onProblem" },
+      "problemMatcher": []
+    },
+    {
+      "label": "web: build",
+      "type": "shell",
+      "command": "npm run build",
+      "options": { "cwd": "${workspaceFolder}/web" },
+      "group": "build",
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "web: watch",
+      "type": "shell",
+      "command": "npm run dev",
+      "options": { "cwd": "${workspaceFolder}/web" },
+      "isBackground": true,
+      "problemMatcher": {
+        "owner": "esbuild",
+        "pattern": { "regexp": "^✘ \\[ERROR\\] (.*)$", "message": 1 },
+        "background": {
+          "activesBegin": true,
+          "beginsPattern": "\\[watch\\] build started",
+          "endsPattern": "\\[watch\\] build finished"
+        }
+      }
+    },
+    {
+      "label": "web: typecheck",
+      "type": "shell",
+      "command": "npm run typecheck",
+      "options": { "cwd": "${workspaceFolder}/web" },
+      "problemMatcher": "$tsc"
+    },
+    {
+      "label": "check: everything (as on GitHub)",
+      "type": "shell",
+      "command": "cd server && ruff check . && ruff format --check . && mypy astrologystudio && pytest -q && cd ../web && npm run typecheck && npm run build",
+      "windows": {
+        "command": "cd server; ruff check .; if ($?) { ruff format --check . }; if ($?) { mypy astrologystudio }; if ($?) { pytest -q }; if ($?) { cd ../web; npm run typecheck }; if ($?) { npm run build }"
+      },
+      "options": { "cwd": "${workspaceFolder}" },
+      "group": "test",
+      "problemMatcher": []
+    }
+  ]
+}

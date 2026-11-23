@@ -1,0 +1,34 @@
+<!doctype html>
+<!--
+  AstrologyStudio ·
+  web/index.html
+
+  The web app's page:
+
+  loads the built script and styles; everything else is drawn by the app.
+
+  Copyright (c) 2026 Gavin Melhuish
+  MIT License; see LICENSE in the project root.
+  SPDX-License-Identifier: MIT
+-->
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>AstrologyStudio</title>
+  <script>
+    // Apply the remembered light/dark choice before the first paint (see src/theme.ts).
+    try {
+      var theme = null, saved = /(?:^|;\s*)as_pref_theme=([^;]*)/.exec(document.cookie);
+      try { theme = JSON.parse(decodeURIComponent(saved ? saved[1] : 'null')); } catch (e) {}
+      if (theme !== 'light' && theme !== 'dark') theme = matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+      document.documentElement.dataset.theme = theme;
+    } catch (e) {}
+  </script>
+  <link rel="stylesheet" href="/styles.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <div id="app"></div>
+</body>
+</html>

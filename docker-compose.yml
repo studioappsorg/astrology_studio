@@ -1,0 +1,28 @@
+# AstrologyStudio ·
+# docker-compose.yml
+#
+# Development stack. Owners install with the one-line installer instead.
+#   docker compose up --build
+# Point it at an ephemeralREST server with ASTROLOGYSTUDIO_EPHEMERAL_URL, or set the
+# address in Settings after creating the owner account.
+#
+# Copyright (c) 2026 Gavin Melhuish
+# MIT License; see LICENSE in the project root.
+# SPDX-License-Identifier: MIT
+
+services:
+  app:
+    build:
+      context: .
+      dockerfile: server/Dockerfile
+    ports:
+      - "8080:8080"
+    environment:
+      ASTROLOGYSTUDIO_BASE_URL: http://localhost:8080
+      ASTROLOGYSTUDIO_EPHEMERAL_URL: ${ASTROLOGYSTUDIO_EPHEMERAL_URL:-}
+      ASTROLOGYSTUDIO_HOSTED: ${ASTROLOGYSTUDIO_HOSTED:-}
+    volumes:
+      - data:/data
+
+volumes:
+  data:
