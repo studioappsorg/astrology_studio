@@ -379,8 +379,11 @@ def test_app_frame(page: Page) -> None:
     # Alt+W closes the tab you're on and moves to its neighbour.
     p.keyboard.press("Alt+w")
     tabs.get_by_role("tab", name="Jane Doe").wait_for(state="detached")
-    # Tabs can be dragged to a new place; the chart library stays first.
-    page.go(f"/charts/{page.chart_id()}")
+    # Tabs can be dragged to a new place; the chart library stays first. (Reopen Jane from the
+    # library rather than reloading the page: a reload straight after closing a tab can beat the
+    # save of the open tabs to the server, and bring the closed tab back where it was.)
+    tabs.get_by_role("tab", name="Chart library").click()
+    p.get_by_role("link", name="Jane Doe").click()
     tabs.get_by_role("tab", name="Jane Doe").wait_for()
 
     def names() -> list[str]:
@@ -716,3 +719,20 @@ def test_tags_as_badges(page: Page) -> None:
     page.go("/charts")
     p.locator(".table .badge", has_text="family").first.wait_for()
     page.api("PATCH", f"/charts/{chart}", {"tags": []})
+
+
+def test_choices_survive_an_immediate_reload(page: Page) -> None:
+    """A tab closed just before reloading stays closed (the change is kept in the tab until the
+    server has it)."""
+    p = page.page
+    page.api("PATCH", "/preferences/remembered", {"values": {"open-tabs": []}})
+    page.go(f"/charts/{page.chart_id()}")
+    tabs = p.get_by_role("tablist", name="Open tabs")
+    tabs.get_by_role("tab", name="Jane Doe").wait_for()
+    p.wait_for_timeout(1500)  # the open tab is saved
+    tabs.get_by_role("button", name="Close Jane Doe").click()
+    p.wait_for_url(re.compile(r"/charts$"))
+    p.reload()
+    tabs.get_by_role("tab", name="Chart library").wait_for()
+    p.wait_for_timeout(300)
+    assert tabs.get_by_role("tab", name="Jane Doe").count() == 0

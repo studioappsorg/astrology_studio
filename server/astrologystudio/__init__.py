@@ -11,4 +11,4 @@ MIT License; see LICENSE in the project root.
 SPDX-License-Identifier: MIT
 """
 
-__version__ = "1.15.8"
+__version__ = "1.15.9"

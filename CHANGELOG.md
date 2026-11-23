@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.15.9
+
+- **Choices made just before a reload are kept.** Your choices (open tabs and the rest) are sent
+  to the server as the page closes, but a reload straight afterwards could load them before the
+  server had saved them, bringing back, say, a tab you'd just closed. Now they're also held in the
+  browser tab for a few seconds and put back (and sent again) when the page loads.
+- The browser test of tabs (`test_app_frame`) failed on GitHub for that reason: it reloaded the
+  page straight after closing a tab. It now reopens the chart from the library instead, and a new
+  test covers closing a tab and reloading at once.
+
 ## 1.15.8
 
 - **Checks workflow:** the GitHub actions are on their Node 24 versions (checkout v6, setup-node

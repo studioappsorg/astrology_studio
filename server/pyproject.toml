@@ -11,7 +11,7 @@
 
 [project]
 name = "astrologystudio"
-version = "1.15.8"
+version = "1.15.9"
 description = "Astrology charts and cosmobiology, self-hosted. Calculations by ephemeralREST."
 readme = "README.md"
 license = "MIT"
