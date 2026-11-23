@@ -98,7 +98,9 @@ def main(source: str) -> None:
         elif record.nameID == 6:
             record.string = FAMILY.replace(" ", "")
         elif record.nameID == 5:
-            record.string = "Version 1.1; derived from Astronomicon 1.1 by Roberto Corona"
+            record.string = (
+                "Version 1.1; derived from Astronomicon 1.1 by Roberto Corona"
+            )
     out = Path(__file__).with_name("StudioAstroGlyphs.woff2")
     font.save(out)
     print(f"Wrote {out} ({out.stat().st_size} bytes, {len(unicode_map)} symbols)")
