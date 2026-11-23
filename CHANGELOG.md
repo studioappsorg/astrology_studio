@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.15.8
+
+- **Checks workflow:** the GitHub actions are on their Node 24 versions (checkout v6, setup-node
+  v6, setup-python v6; the release workflow's Docker actions too), which clears the "Node.js 20 is
+  deprecated" warnings. The browser tests list each failure by name (`-rf`), and a failing browser
+  test now saves a screenshot of the page, kept as the run's `browser-test-failures` artifact.
+- A browser test of presets waits for the transits view's chart to be worked out before saving,
+  which a slow machine could otherwise beat.
+
+## 1.15.7
+
+- **fontTools and brotli are part of the development setup** (`server[dev]`, which F5 installs),
+  so `web/fonts/make-glyph-font.py` runs from `.venv` and VS Code no longer reports
+  `Import "fontTools" could not be resolved`.
+
 ## 1.15.6
 
 - **Every source file starts with a header:** the app's name, the file's path, what the file is

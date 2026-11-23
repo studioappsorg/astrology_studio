@@ -17,6 +17,7 @@ SPDX-License-Identifier: MIT
 
 from __future__ import annotations
 
+import contextlib
 import os
 import socket
 import threading
@@ -137,7 +138,7 @@ FEATURE_KEYS = tuple(catalog.FEATURES)
 
 
 @pytest.fixture
-def page(server: str, browser: Any) -> Iterator[Page]:
+def page(server: str, browser: Any, request: pytest.FixtureRequest) -> Iterator[Page]:
     context = browser.new_context(viewport={"width": 1400, "height": 900}, accept_downloads=True)
     raw = context.new_page()
     wrapped = Page(raw, server)
@@ -182,5 +183,20 @@ def page(server: str, browser: Any) -> Iterator[Page]:
     for chart in wrapped.api("GET", "/charts")["data"]:
         wrapped.api("DELETE", f"/preferences/chart-views/{chart['id']}")
     yield wrapped
+    if getattr(request.node, "failed_call", False):
+        # What the page looked like when the test failed (CI keeps these as an artifact).
+        shots = Path(__file__).resolve().parents[2] / "e2e-failures"
+        shots.mkdir(exist_ok=True)
+        with contextlib.suppress(Exception):  # a failed screenshot mustn't hide the real failure
+            raw.screenshot(path=str(shots / f"{request.node.name}.png"), full_page=True)
     context.close()
     assert not wrapped.errors, wrapped.errors
+
+
+@pytest.hookimpl(wrapper=True)
+def pytest_runtest_makereport(item: pytest.Item, call: pytest.CallInfo[None]) -> Any:
+    """Note on each test whether its body failed, for the screenshot above."""
+    report = yield
+    if report.when == "call" and report.failed:
+        item.failed_call = True  # type: ignore[attr-defined]
+    return report

@@ -504,6 +504,9 @@ def test_presets_as_sets_of_views(page: Page) -> None:
     p.get_by_role("button", name="Add a view").click()
     p.get_by_role("menuitem", name="With transits now").click()
     p.wait_for_function("document.querySelectorAll('.view-chip').length === 3")
+    # The transits chart is worked out after the view appears: wait for it before saving.
+    p.locator(".view-chip", has_text="Transits").wait_for()
+    p.wait_for_timeout(300)
     # Save them; chart 2 stays "transits now", and new charts open with the preset.
     preset = p.get_by_label("Preset", exact=True)
     preset.select_option("__new")
