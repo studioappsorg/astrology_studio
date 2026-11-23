@@ -1,5 +1,15 @@
-# Checks every push and pull request: server tests and linting, the web app's types, unit
-# tests and build, browser tests of the main paths, and the installer script.
+# AstrologyStudio ·
+# .github/workflows/ci.yml
+#
+# Checks every push and pull request:
+#
+# server tests and linting, the web app's types, unit tests and build, browser tests of the main
+# paths, and the installer script.
+#
+# Copyright (c) 2026 Gavin Melhuish
+# MIT License; see LICENSE in the project root.
+# SPDX-License-Identifier: MIT
+
 name: Checks
 
 on:
@@ -18,8 +28,8 @@ jobs:
       run:
         working-directory: server
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+      - uses: actions/checkout@v6
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -36,8 +46,8 @@ jobs:
       run:
         working-directory: web
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
@@ -52,13 +62,13 @@ jobs:
     # stand-in ephemeralREST the server tests use.
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
+      - uses: actions/checkout@v6
+      - uses: actions/setup-node@v6
         with:
           node-version: "22"
           cache: npm
           cache-dependency-path: web/package-lock.json
-      - uses: actions/setup-python@v5
+      - uses: actions/setup-python@v6
         with:
           python-version: "3.12"
           cache: pip
@@ -67,13 +77,20 @@ jobs:
         working-directory: web
       - run: pip install -e ".[dev,e2e]" && python -m playwright install --with-deps chromium
         working-directory: server
-      - run: pytest -m e2e -q
+      - run: pytest -m e2e -q -rf
         working-directory: server
+      # A screenshot of the page at the moment each browser test failed.
+      - uses: actions/upload-artifact@v7
+        if: failure()
+        with:
+          name: browser-test-failures
+          path: server/e2e-failures/
+          if-no-files-found: ignore
 
   installer:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Lint the installer
         run: shellcheck install/install.sh scripts/*.sh
       - name: Dry run, as people run it (piped into bash)
