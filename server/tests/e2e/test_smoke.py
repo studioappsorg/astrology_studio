@@ -984,3 +984,37 @@ def test_overview_tab(page: Page) -> None:
     page.go(f"/charts/{chart}/sheet")
     expect(p.locator(".sheet .em-table__totals .em-table__total")).to_have_text("12")
     expect(p.locator(".sheet__signature")).to_contain_text("Signature")
+
+
+def test_choice_survives_reload_while_saving(page: Page) -> None:
+    """A screen choice whose save is still on its way to the server when the page reloads isn't
+    lost: it's sent again as the page closes, and put back after the reload."""
+    p = page.page
+    chart = page.chart_id()
+    page.go(f"/charts/{chart}")
+    p.locator("svg.wheel").first.wait_for()
+    p.get_by_role("tablist", name="Reports").get_by_role("tab").nth(1).click()
+    held: list[Any] = []
+
+    def hold_first(route: Any) -> None:
+        if route.request.method == "PATCH" and not held:
+            held.append(route)  # never answered: still on its way when the page reloads
+        else:
+            route.continue_()
+
+    p.route("**/api/v1/preferences/remembered", hold_first)
+    p.get_by_label("What to count").select_option("angles")
+    for _ in range(40):
+        if held:
+            break
+        p.wait_for_timeout(50)
+    assert held, "the choice was never sent"
+    p.reload()
+    p.wait_for_load_state("networkidle")
+    p.unroute("**/api/v1/preferences/remembered")
+    expect(p.get_by_label("What to count")).to_have_value("angles")
+    for _ in range(30):
+        if page.api("GET", "/preferences/remembered")["values"].get("overview-counting") == "angles":
+            break
+        p.wait_for_timeout(100)
+    assert page.api("GET", "/preferences/remembered")["values"].get("overview-counting") == "angles"

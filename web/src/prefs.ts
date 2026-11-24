@@ -43,6 +43,8 @@ const memory = new Map<string, string>();
 let signedIn = false;
 /** Changes waiting to be saved. */
 const pending = new Map<string, unknown>();
+/** Sent to the server but not yet confirmed: kept so a page closing mid-send doesn't lose them. */
+const sending = new Map<string, unknown>();
 let timer: ReturnType<typeof setTimeout> | null = null;
 
 function cookieEntries(): Array<[string, string]> {
@@ -86,7 +88,23 @@ function save(): void {
   if (!signedIn || !pending.size) return;
   const values = Object.fromEntries(pending);
   pending.clear();
-  api('/preferences/remembered', 'PATCH', { values }).catch(() => undefined);
+  for (const [key, value] of Object.entries(values)) sending.set(key, value);
+  // keepalive: a reload or a move to another page straight after doesn't cancel it.
+  send(values).then(
+    () => { for (const [key, value] of Object.entries(values)) if (sending.get(key) === value) sending.delete(key); },
+    () => undefined, // kept in `sending`: sent again with the next change or as the page closes
+  );
+}
+
+function send(values: Record<string, unknown>): Promise<void> {
+  const token = getCsrfToken();
+  return fetch('/api/v1/preferences/remembered', {
+    method: 'PATCH',
+    keepalive: true,
+    credentials: 'same-origin',
+    headers: { 'Content-Type': 'application/json', ...(token ? { 'X-CSRF-Token': token } : {}) },
+    body: JSON.stringify({ values }),
+  }).then((r) => { if (!r.ok) throw new Error(String(r.status)); });
 }
 
 /**
@@ -116,22 +134,15 @@ function takeUnsaved(): Record<string, unknown> {
   return {};
 }
 
-/** Save straight away, even as the page closes. */
+/** Save straight away, even as the page closes, including anything sent but not yet confirmed. */
 function flush(): void {
   if (timer) clearTimeout(timer);
   timer = null;
-  if (!signedIn || !pending.size) return;
-  const values = Object.fromEntries(pending);
+  if (!signedIn || (!pending.size && !sending.size)) return;
+  const values = { ...Object.fromEntries(sending), ...Object.fromEntries(pending) };
   pending.clear();
   keepUnsaved(values);
-  const token = getCsrfToken();
-  void fetch('/api/v1/preferences/remembered', {
-    method: 'PATCH',
-    keepalive: true,
-    credentials: 'same-origin',
-    headers: { 'Content-Type': 'application/json', ...(token ? { 'X-CSRF-Token': token } : {}) },
-    body: JSON.stringify({ values }),
-  }).catch(() => undefined);
+  send(values).catch(() => undefined);
 }
 
 addEventListener('pagehide', flush);
@@ -199,8 +210,9 @@ export async function loadRemembered(): Promise<void> {
 export async function forgetRemembered(): Promise<void> {
   if (timer) clearTimeout(timer);
   timer = null;
-  const values = signedIn && pending.size ? Object.fromEntries(pending) : null;
+  const values = signedIn && (pending.size || sending.size) ? { ...Object.fromEntries(sending), ...Object.fromEntries(pending) } : null;
   pending.clear();
+  sending.clear();
   takeUnsaved(); // not for whoever logs in next
   signedIn = false;
   memory.clear();

@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.21.4
+
+### Fixed: a choice could be lost if the page reloaded while it was being saved
+
+- Screen choices (such as *Open new charts with this preset*, the Overview's counting, the default
+  preset) are saved a moment after you make them. If the page reloaded or moved on just as that
+  save was on its way, the browser cancelled it and the choice was lost. Saves now carry on when
+  the page closes, and anything not yet confirmed is sent again and put back after the reload.
+- This was behind an occasional failure of the presets browser test on slower machines (CI); a new
+  test holds a save back, reloads, and checks the choice is still there.
+
 ## 1.21.3
 
 ### Settings in tabs
