@@ -19,6 +19,10 @@ import pytest
 
 from .conftest import Page
 
+# Playwright's checks retry until they pass (up to 5 s), so they wait for the app to catch up
+# instead of reading a value the moment before it changes. Skipped without Playwright.
+expect = pytest.importorskip("playwright.sync_api").expect
+
 pytestmark = pytest.mark.e2e
 
 
@@ -126,7 +130,7 @@ def test_presets(page: Page) -> None:
     chosen = preset.evaluate("s => [...s.options].find(o => o.text.startsWith('Dial work')).value")
     preset.select_option(chosen)
     p.locator("svg.dial").wait_for()
-    assert p.get_by_label("Chart type").input_value() == "dial"
+    expect(p.get_by_label("Chart type")).to_have_value("dial")
 
 
 def test_harmonic_chart(page: Page) -> None:
@@ -315,7 +319,7 @@ def test_events_report(page: Page) -> None:
     # Choose the bodies: Saturn alone, to the Sun alone.
     moving = p.get_by_role("group", name="Transiting")
     natal = p.get_by_role("group", name="To natal")
-    assert moving.get_by_role("button", name="Moon").get_attribute("aria-pressed") == "false"
+    expect(moving.get_by_role("button", name="Moon")).to_have_attribute("aria-pressed", "false")
     moving.get_by_role("button", name="None").click()
     assert p.get_by_role("button", name="List events").is_disabled()
     moving.get_by_role("button", name="Saturn").click()
@@ -333,10 +337,10 @@ def test_events_report(page: Page) -> None:
         assert t.startswith("t Saturn") and (" natal Sun," in t or " natal Ascendant," in t)
     # Remembered when the page comes back.
     page.go(f"/charts/{page.chart_id()}/events")
-    assert moving.get_by_role("button", name="Saturn").get_attribute("aria-pressed") == "true"
-    assert moving.get_by_role("button", name="Jupiter").get_attribute("aria-pressed") == "false"
+    expect(moving.get_by_role("button", name="Saturn")).to_have_attribute("aria-pressed", "true")
+    expect(moving.get_by_role("button", name="Jupiter")).to_have_attribute("aria-pressed", "false")
     moving.get_by_role("button", name="Usual").click()
-    assert moving.get_by_role("button", name="Jupiter").get_attribute("aria-pressed") == "true"
+    expect(moving.get_by_role("button", name="Jupiter")).to_have_attribute("aria-pressed", "true")
     report(p, "Aspects")
     p.locator(".aspect-grid").wait_for()
 
@@ -375,7 +379,7 @@ def test_app_frame(page: Page) -> None:
     p.get_by_role("menubar", name="Menu").get_by_role("button", name="View", exact=True).click()
     p.get_by_role("menuitemradio", name="Dial").click()
     p.locator("svg.dial").wait_for()
-    assert p.get_by_label("Chart type").input_value() == "dial"
+    expect(p.get_by_label("Chart type")).to_have_value("dial")
     # Alt+W closes the tab you're on and moves to its neighbour.
     p.keyboard.press("Alt+w")
     tabs.get_by_role("tab", name="Jane Doe").wait_for(state="detached")
@@ -389,10 +393,17 @@ def test_app_frame(page: Page) -> None:
     def names() -> list[str]:
         return [n.replace("☉", "").strip() for n in tabs.get_by_role("tab").all_inner_texts()]
 
-    assert names() == ["Chart library", "John Smith", "Jane Doe"]
+    def tabs_are(expected: list[str]) -> None:
+        for _ in range(50):
+            if names() == expected:
+                return
+            p.wait_for_timeout(100)
+        assert names() == expected
+
+    tabs_are(["Chart library", "John Smith", "Jane Doe"])
     jane = tabs.locator(".doc-tab", has_text="Jane Doe")
     jane.drag_to(tabs.locator(".doc-tab", has_text="John Smith"), target_position={"x": 5, "y": 5})
-    assert names() == ["Chart library", "Jane Doe", "John Smith"]
+    tabs_are(["Chart library", "Jane Doe", "John Smith"])
     jane.drag_to(tabs.locator(".doc-tab", has_text="Chart library"), target_position={"x": 5, "y": 5})
     assert names()[0] == "Chart library"
     # The library can't be closed: closing every other tab leaves it, and Alt+W does nothing there.
@@ -401,7 +412,7 @@ def test_app_frame(page: Page) -> None:
         tabs.get_by_role("button", name=re.compile("^Close ")).first.click()
     p.wait_for_url(re.compile(r"/charts$"))
     p.keyboard.press("Alt+w")
-    assert names() == ["Chart library"]
+    tabs_are(["Chart library"])
     # Opening the app's own address goes to the library.
     page.go("/")
     p.wait_for_url(re.compile(r"/charts$"))
@@ -522,7 +533,7 @@ def test_presets_as_sets_of_views(page: Page) -> None:
     saved = next(x for x in presets if x["name"] == "Full reading")
     assert [v["display"] for v in saved["views"]] == ["wheel", "dial", "dial"]
     assert saved["views"][2]["partner"] == {"role": "transits_now"}
-    assert preset.input_value() == saved["id"]  # the picker shows the chart's preset
+    expect(preset).to_have_value(saved["id"])  # the picker shows the chart's preset
     # A chart with no views yet opens with the default preset, transits worked out for now.
     john = next(c["id"] for c in page.api("GET", "/charts")["data"] if c["name"] == "John Smith")
     page.api("PATCH", "/preferences/remembered", {"values": {"preset-apply-mode": ""}})
@@ -602,23 +613,19 @@ def test_self_selected_school(page: Page) -> None:
     page.go("/view?tab=features")
     schools = p.get_by_role("group", name="Default school").locator("label")
     schools.first.get_by_text("Self-selected").wait_for()
-    assert schools.first.locator("input").is_checked()
+    expect(schools.first.locator("input")).to_be_checked()
     schools.first.get_by_text("Mix and match techniques from every school").wait_for()
     dials = p.get_by_role("checkbox", name="Cosmobiology dials")
-    assert dials.is_checked()
+    expect(dials).to_be_checked()
     p.on("dialog", lambda d: d.accept())
     p.get_by_role("button", name="Back to the most common techniques").click()
-    for _ in range(30):
-        if not dials.is_checked():
-            break
-        p.wait_for_timeout(100)
-    assert not dials.is_checked()
-    assert p.get_by_role("checkbox", name="Transits").is_checked()
-    assert p.get_by_role("checkbox", name="Midpoints").is_checked()
+    expect(dials).not_to_be_checked()
+    expect(p.get_by_role("checkbox", name="Transits")).to_be_checked()
+    expect(p.get_by_role("checkbox", name="Midpoints")).to_be_checked()
     # Another school is a choice of where charts open; the switches stay as they are.
     schools.filter(has_text="Cosmobiology").locator("input").check()
     p.get_by_role("button", name="Show only what Cosmobiology uses").wait_for()
-    assert not dials.is_checked()
+    expect(dials).not_to_be_checked()
     assert page.api("GET", "/preferences/view")["display"]["school"] == "cosmobiology"
 
 
@@ -642,7 +649,7 @@ def test_new_chart_dialog_and_defaults(page: Page) -> None:
     assert box and size
     assert abs(box["x"] + box["width"] / 2 - size["width"] / 2) < 4
     assert abs(box["y"] + box["height"] / 2 - size["height"] / 2) < 4
-    assert dialog.locator("#field-place").input_value() == "London, UK"
+    expect(dialog.locator("#field-place")).to_have_value("London, UK")
     houses = dialog.get_by_label("House system")
     assert houses.locator("option:checked").inner_text() == "Default (Koch)"
     houses.select_option("regiomontanus")

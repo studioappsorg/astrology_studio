@@ -1,5 +1,13 @@
 # Changelog
 
+## 1.15.10
+
+- **Browser tests wait for the screen to catch up.** `test_app_frame` failed on GitHub because it
+  read the title bar's chart-type picker a moment before it changed to Dial (the dial was already
+  drawn; the picker follows a moment later). Checks made straight after an action (the picker,
+  the preset picker, a place filled in, symbol buttons, checkboxes and the tab order) now use
+  Playwright's retrying checks, which wait up to 5 seconds for the expected value.
+
 ## 1.15.9
 
 - **Choices made just before a reload are kept.** Your choices (open tabs and the rest) are sent
