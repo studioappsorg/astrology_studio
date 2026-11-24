@@ -49,7 +49,7 @@ export const DERIVED_LABELS: Record<DerivedKind, string> = {
   davison: 'Davison',
 };
 
-/** The Your view feature each kind of derived chart belongs to. */
+/** The My View feature each kind of derived chart belongs to. */
 const DERIVED_FEATURE: Record<DerivedKind, string> = {
   transits: 'transits',
   progressed: 'progressions',
@@ -61,7 +61,7 @@ const DERIVED_FEATURE: Record<DerivedKind, string> = {
   davison: 'davison',
 };
 
-/** The kinds of derived chart this person has switched on in Your view. */
+/** The kinds of derived chart this person has switched on in My View. */
 export function useDerivedKinds(): DerivedKind[] {
   const { feature } = useView();
   return (Object.keys(DERIVED_LABELS) as DerivedKind[]).filter((k) => feature(DERIVED_FEATURE[k]));

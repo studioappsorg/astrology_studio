@@ -83,7 +83,7 @@ const readTabs = () => withLibrary(getPref<Tab[]>(TABS, [], isTabs));
 const SECTIONS: Record<string, string> = {
   '/charts': 'Chart library',
   '/charts/new': 'New chart',
-  '/view': 'Your view',
+  '/view': 'My View',
   '/settings': 'Settings',
   '/account': 'Account',
   '/users': 'Users',
@@ -93,7 +93,7 @@ const SECTIONS: Record<string, string> = {
 
 /** Which tab an address belongs to; null for the home screen. */
 export function tabKey(path: string): string | null {
-  if (path === '/' || path === '') return null;
+  if (path === '/' || path === '' || path === '/reset-password') return null;
   if (path === '/charts' || path === '/charts/new') return path;
   const chart = /^\/charts\/([^/]+)/.exec(path);
   if (chart) return `/charts/${chart[1]}`;

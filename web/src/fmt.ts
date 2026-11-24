@@ -3,7 +3,7 @@
  * web/src/fmt.ts
  *
  * How degrees, dates, times and the retrograde mark are written, as each person chooses in
- * Your view → Appearance. Set once by the appearance provider; every screen reads it here.
+ * My View → Appearance. Set once by the appearance provider; every screen reads it here.
  *
  * Copyright (c) 2026 Gavin Melhuish
  * MIT License; see LICENSE in the project root.

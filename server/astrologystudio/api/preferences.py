@@ -40,7 +40,7 @@ class Switches(Strict):
     aspect_colours: dict[str, str | None] | None = None
     """Your colour for each aspect, as #rrggbb; null goes back to the theme's colour."""
     reset: bool = False
-    """Back to the defaults for everything in Your view (before applying any other change)."""
+    """Back to the defaults for everything in My View (before applying any other change)."""
 
 
 def _view(conn: Db, user_id: str) -> dict[str, Any]:
@@ -364,7 +364,7 @@ class ViewBody(Strict):
     """How chart 2 was made, when it was worked out for now (kept for saving the view in a preset)."""
     ask: bool = False
     """Chart 2 is still to be chosen (a preset's "ask each time")."""
-    report: Literal["chart", "aspects", "midpoints", "hellenistic", "events"] = "chart"
+    report: Literal["chart", "overview", "aspects", "midpoints", "hellenistic", "events"] = "chart"
     selected: Literal[0, 1] = 0
     between: bool = False
     pointer: Annotated[float, Field(ge=0, lt=360)] | None = None

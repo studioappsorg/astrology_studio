@@ -89,6 +89,33 @@ function save(): void {
   api('/preferences/remembered', 'PATCH', { values }).catch(() => undefined);
 }
 
+/**
+ * Changes sent as the page closed, kept in this tab for a few seconds too. Reloading straight
+ * after a change can load the choices before the server has saved them; this puts them back.
+ */
+const UNSAVED = 'astrologystudio:unsaved-choices';
+const UNSAVED_FOR_MS = 30_000;
+
+function keepUnsaved(values: Record<string, unknown>): void {
+  try {
+    sessionStorage.setItem(UNSAVED, JSON.stringify({ at: Date.now(), values }));
+  } catch {
+    /* no storage here: the server copy is all there is */
+  }
+}
+
+function takeUnsaved(): Record<string, unknown> {
+  try {
+    const raw = sessionStorage.getItem(UNSAVED);
+    sessionStorage.removeItem(UNSAVED);
+    const held = raw ? (JSON.parse(raw) as { at?: number; values?: Record<string, unknown> }) : null;
+    if (held && typeof held.at === 'number' && Date.now() - held.at < UNSAVED_FOR_MS && held.values) return held.values;
+  } catch {
+    /* unreadable: ignore */
+  }
+  return {};
+}
+
 /** Save straight away, even as the page closes. */
 function flush(): void {
   if (timer) clearTimeout(timer);
@@ -96,6 +123,7 @@ function flush(): void {
   if (!signedIn || !pending.size) return;
   const values = Object.fromEntries(pending);
   pending.clear();
+  keepUnsaved(values);
   const token = getCsrfToken();
   void fetch('/api/v1/preferences/remembered', {
     method: 'PATCH',
@@ -131,6 +159,16 @@ export async function loadRemembered(): Promise<void> {
   memory.clear();
   for (const [key, value] of Object.entries(values)) memory.set(key, JSON.stringify(value));
   signedIn = true;
+  // Anything changed just before a reload that the server may not have had yet wins, and is
+  // sent again.
+  const unsaved = takeUnsaved();
+  if (Object.keys(unsaved).length) {
+    for (const [key, value] of Object.entries(unsaved)) {
+      if (value === null) memory.delete(key);
+      else memory.set(key, JSON.stringify(value));
+    }
+    await api('/preferences/remembered', 'PATCH', { values: unsaved }).catch(() => undefined);
+  }
 
   if (readCookie(MIGRATED) === null) {
     const handed: Record<string, unknown> = {};
@@ -163,6 +201,7 @@ export async function forgetRemembered(): Promise<void> {
   timer = null;
   const values = signedIn && pending.size ? Object.fromEntries(pending) : null;
   pending.clear();
+  takeUnsaved(); // not for whoever logs in next
   signedIn = false;
   memory.clear();
   for (const key of MIRRORED) announce(key);

@@ -52,7 +52,7 @@ const isSizes = (v: unknown): v is DialModulus[] =>
   Array.isArray(v) && v.length > 0 && v.length <= MAX_SIZES && v.every(isModulus) && new Set(v).size === v.length;
 
 /**
- * The dial sizes switched on in Your view. Only 90° by default; anyone who was already on the
+ * The dial sizes switched on in My View. Only 90° by default; anyone who was already on the
  * 120° or 360° dial has that size on as well, so their screen doesn't change.
  */
 export function useDialSizes(): [DialModulus[], (sizes: DialModulus[]) => void] {
@@ -87,9 +87,9 @@ export function useLayout(display: DisplayKey): [Layout, (id: string) => void] {
 }
 export { isReport, reportOf, type Report } from './report';
 
-/** Whether each aspect's symbol is drawn in the middle of its line on the chart wheel (Your view → Aspects). */
+/** Whether each aspect's symbol is drawn in the middle of its line on the chart wheel (My View → Aspects). */
 export const useLineGlyphs = () => usePref<boolean>('aspect-line-glyphs', true, isBoolean);
 
 /** Whether the chart wheel draws a line from a symbol moved aside (to make room) back to its tick
- * on the graduation. Off by default; Your view → Charts & dials. The ticks themselves always show. */
+ * on the graduation. Off by default; My View → Charts & dials. The ticks themselves always show. */
 export const useLeaderLines = () => usePref<boolean>('wheel-leader-lines', false, isBoolean);

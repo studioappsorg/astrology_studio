@@ -7,7 +7,7 @@ Charts:
 created, recalculated and stored by ephemeralREST, organised here.
 
 A chart is always calculated with every body and point switched on, so what a
-person sees can change with Your view without calculating again. Positions are
+person sees can change with My View without calculating again. Positions are
 returned in one tidy shape (`Chart`) whatever shape ephemeralREST sent.
 
 Copyright (c) 2026 Gavin Melhuish
@@ -47,7 +47,7 @@ HOUSE_SYSTEMS: dict[str, str] = {
 
 RATINGS = ("", "AA", "A", "B", "C", "DD", "X", "XX")
 
-# Ask for everything when calculating; Your view decides what's shown.
+# Ask for everything when calculating; My View decides what's shown.
 FULL_OUTPUT: dict[str, Any] = {
     "geocentric": True,
     "heliocentric": True,

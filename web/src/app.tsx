@@ -27,12 +27,13 @@ import { setHosted, setOwner } from './hosted';
 import { resetCharts } from './frame/store';
 import { resetViews } from './views';
 import { resetDefaults } from './defaults';
+import { resetBranding } from './branding';
 
 type State =
   | { kind: 'loading' }
   | { kind: 'error'; message: string }
   | { kind: 'setup' }
-  | { kind: 'login'; registrationOpen: boolean }
+  | { kind: 'login'; registrationOpen: boolean; passwordReset: boolean }
   | { kind: 'app'; session: Session };
 
 export function App() {
@@ -57,11 +58,12 @@ export function App() {
     resetCharts();
     resetViews();
     resetDefaults();
+    resetBranding();
     setCsrfToken(null);
     // Ask again whether new accounts are allowed; the owner may have changed it.
     api<AuthStatus>('/auth/status')
-      .then((status) => { setHosted(status.hosted ?? false); setState({ kind: 'login', registrationOpen: status.registration_open }); })
-      .catch(() => setState({ kind: 'login', registrationOpen: false }));
+      .then((status) => { setHosted(status.hosted ?? false); setState({ kind: 'login', registrationOpen: status.registration_open, passwordReset: !!status.password_reset }); })
+      .catch(() => setState({ kind: 'login', registrationOpen: false, passwordReset: false }));
   }, []);
 
   useEffect(() => {
@@ -71,7 +73,7 @@ export function App() {
         setHosted(status.hosted ?? false);
         if (status.setup_required) setState({ kind: 'setup' });
         else if (status.user) signedIn(status.user);
-        else setState({ kind: 'login', registrationOpen: status.registration_open });
+        else setState({ kind: 'login', registrationOpen: status.registration_open, passwordReset: !!status.password_reset });
       })
       .catch((error: unknown) => setState({ kind: 'error', message: describe(error) }));
   }, [signedIn, signedOut]);
@@ -89,7 +91,7 @@ export function App() {
       // Straight into getting started: connect ephemeralREST and add a key.
       return <Setup onDone={(session) => { navigate('/start', { replace: true }); signedIn(session); }} />;
     case 'login':
-      return <Login onDone={signedIn} registrationOpen={state.registrationOpen} />;
+      return <Login onDone={signedIn} registrationOpen={state.registrationOpen} passwordReset={state.passwordReset} />;
     case 'app': {
       const signOut = async () => {
         await forgetRemembered();

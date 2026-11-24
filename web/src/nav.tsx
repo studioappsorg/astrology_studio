@@ -19,7 +19,7 @@ import { Modal, ModalBody, ModalFooter } from './components/Modal';
 import { NewChartPresets, PresetNotice, PresetPicker } from './presets';
 import { isChartScreen, sizeLabel, useDialModulus, useDialSizes, useDisplay, useLayout, type DialModulus, type DisplayKey } from './display';
 import { closeTab, chartOf, LIBRARY, useTabs } from './frame/store';
-import { findChart, useStatusBar } from './frame/layout';
+import { findChart } from './frame/layout';
 import { Menus, type Menu, type MenuItem } from './frame/Menus';
 import { appVersion } from './frame/StatusBar';
 import { plainWording } from './hosted';
@@ -60,9 +60,7 @@ export function AppBar({ activeKey }: { activeKey: string | null }) {
   const { session, signOut } = useSession();
   const { feature } = useView();
   const [theme, setTheme] = useTheme();
-  const [statusBar, setStatusBar] = useStatusBar();
   const [tabs] = useTabs();
-  const [display, setDisplay] = useViewDisplay();
   const [dialog, setDialog] = useState<'keys' | 'about' | null>(null);
   const onChart = isChartScreen(path);
   const chartId = activeKey ? chartOf(activeKey) : null;
@@ -109,13 +107,10 @@ export function AppBar({ activeKey }: { activeKey: string | null }) {
 
   const go = (to: string) => () => navigate(to);
   const sep: MenuItem = { separator: true };
-  const displays: Array<[DisplayKey, string]> = [
-    ['wheel', 'Chart wheel'],
-    ...(feature('hellenistic') ? [['hellenistic', 'Hellenistic chart'] as [DisplayKey, string]] : []),
-    ...(feature('dials') ? [['dial', 'Dial'] as [DisplayKey, string]] : []),
-  ];
-  const together = feature('synastry') || feature('composite') || feature('davison');
 
+  // Only what can't be reached in a click elsewhere: chart types are in the title bar's picker,
+  // dark mode is its ☾ button, the chart library is the first tab, and Account and Log out are
+  // in the account menu.
   const menus: Menu[] = [
     {
       label: 'File',
@@ -123,56 +118,34 @@ export function AppBar({ activeKey }: { activeKey: string | null }) {
         { label: 'New chart', shortcut: `${ALT}N`, run: go('/charts/new') },
         { label: 'Open chart…', shortcut: `${MOD}K`, run: findChart },
         { label: 'Add a shared chart…', run: go('/charts?add=shared') },
-        { label: 'Chart library', run: go('/charts') },
         sep,
         { label: 'Close tab', shortcut: `${ALT}W`, run: closeCurrent, disabled: !activeKey || activeKey === LIBRARY },
-        sep,
-        { label: 'Account', run: go('/account') },
-        { label: 'Log out', run: () => void signOut() },
-      ],
-    },
-    {
-      label: 'View',
-      items: [
-        ...displays.map(([key, label]): MenuItem => ({
-          label, kind: 'radio', checked: onChart && display === key, disabled: !onChart, run: () => setDisplay(key),
-        })),
-        sep,
-        { label: 'Status bar', kind: 'checkbox', checked: statusBar, run: () => setStatusBar(!statusBar) },
-        { label: 'Dark mode', kind: 'checkbox', checked: theme === 'dark', run: toggleTheme },
-        sep,
-        { label: 'Next tab', shortcut: `${ALT}]`, run: () => cycle(1), disabled: tabs.length < 2 },
-        { label: 'Previous tab', shortcut: `${ALT}[`, run: () => cycle(-1), disabled: tabs.length < 2 },
-        sep,
-        { label: 'Your view…', run: go('/view') },
       ],
     },
     {
       label: 'Chart',
       disabled: !chartId,
       items: chartId ? [
-        { label: 'Chart', run: go(`/charts/${chartId}`), kind: 'radio', checked: path === `/charts/${chartId}` },
-        ...(together ? [{ label: 'With another chart', run: go(`/charts/${chartId}/with`), kind: 'radio', checked: path.endsWith('/with') } as MenuItem] : []),
+        { label: 'Edit details…', run: go(`/charts/${chartId}/edit`) },
         ...(feature('returns') ? [{ label: 'Returns', run: go(`/charts/${chartId}/returns`), kind: 'radio', checked: path.endsWith('/returns') } as MenuItem] : []),
         { label: 'Client sheet', run: go(`/charts/${chartId}/sheet`), kind: 'radio', checked: path.endsWith('/sheet') },
-        sep,
-        { label: 'Edit details…', run: go(`/charts/${chartId}/edit`) },
       ] : [],
     },
     {
       label: 'Tools',
       items: [
         ...(feature('ephemeris') ? [{ label: 'Ephemeris', run: go('/ephemeris') } as MenuItem] : []),
-        { label: 'Your view', run: go('/view') },
         { label: 'Settings', shortcut: `${MOD},`, run: go('/settings') },
         ...(owner ? [{ label: 'Users', run: go('/users') } as MenuItem] : []),
-        ...(plainWording() ? [] : [sep, { label: 'Getting started', run: go('/start') } as MenuItem]),
       ],
     },
+    // Not a list: straight to the page.
+    { label: 'My View', run: go('/view'), current: path === '/view', items: [] },
     {
       label: 'Help',
       items: [
         { label: 'Keyboard shortcuts', shortcut: '?', run: () => setDialog('keys') },
+        ...(plainWording() ? [] : [{ label: 'Getting started', run: go('/start') } as MenuItem]),
         { label: 'About AstrologyStudio', run: () => setDialog('about') },
       ],
     },
@@ -186,7 +159,6 @@ export function AppBar({ activeKey }: { activeKey: string | null }) {
     face: <><span class="avatar" aria-hidden="true">{initial}</span><span class="title-bar__who">{who}</span></>,
     items: [
       { label: 'Account', run: go('/account') },
-      { label: 'Your view', run: go('/view') },
       sep,
       { label: 'Log out', run: () => void signOut() },
     ],
@@ -254,7 +226,7 @@ function useViewDialSize(): [number, (m: number) => void] {
 }
 
 /** The chart screen's chart type: the chart wheel, the Hellenistic chart or the dial, and the
- * dial's size when more than one size is switched on in Your view. Only on the chart screen. */
+ * dial's size when more than one size is switched on in My View. Only on the chart screen. */
 function DisplayPicker() {
   const { feature } = useView();
   const [display, setDisplay] = useViewDisplay();

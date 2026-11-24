@@ -329,7 +329,7 @@ class ViewTemplate(Strict):
     display: Literal["wheel", "hellenistic", "dial"]
     dial_size: float | None = None
     layout: str | None = None
-    report: Literal["chart", "aspects", "midpoints", "hellenistic", "events"] = "chart"
+    report: Literal["chart", "overview", "aspects", "midpoints", "hellenistic", "events"] = "chart"
     between: bool = False
     partner: PartnerRole = PartnerRole()
 
@@ -423,7 +423,7 @@ class PresetOrder(Strict):
 
 @router.put("/preferences/presets-order", summary="Put your presets in order")
 def order_presets(body: PresetOrder, conn: Db, person: UserPrincipal) -> dict[str, Any]:
-    """The order the preset picker and Your view list them in. Presets not named keep their place
+    """The order the preset picker and My View list them in. Presets not named keep their place
     after the ones that are; unknown ids are ignored."""
     with transaction(conn):
         own = look.presets(conn, person.id)

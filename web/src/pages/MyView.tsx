@@ -1,8 +1,8 @@
 /**
  * AstrologyStudio ·
- * web/src/pages/YourView.tsx
+ * web/src/pages/MyView.tsx
  *
- * Your view:
+ * My View:
  *
  * the features, bodies and look you want. Only changes what you see. Six tabs: Features (and
  * default school), Appearance (themes and display options), Charts & dials (dial sizes and
@@ -35,6 +35,7 @@ const FEATURE_HINTS: Record<string, string> = {
   progressions: 'Secondary progressions, day for a year',
   solar_arc: 'Every natal point moved by the solar arc',
   returns: 'Solar and lunar returns',
+  overview: 'The Overview tab: elements and modalities, the chart signature, hemispheres, chart shape, patterns and more',
   synastry: 'Two charts together, with the aspects between them',
   composite: 'The midpoint chart of two charts (Change → Derived chart → Composite)',
   davison: 'The chart for the midpoint in time and space (Change → Derived chart → Davison)',
@@ -49,7 +50,7 @@ const FEATURE_HINTS: Record<string, string> = {
 
 const OPENS_ON: Record<string, string> = { wheel: 'opens on the chart wheel', hellenistic: 'opens on the Hellenistic chart', dial: 'opens on the dial' };
 
-export function YourView() {
+export function MyView() {
   const { catalog, feature, body, display, update, limitToSchool } = useView();
   const [tab, setTab] = usePref<Tab>('view-tab', 'features', isTab);
   // ?tab=presets (Manage presets… in the preset picker) opens on that tab.
@@ -81,10 +82,10 @@ export function YourView() {
 
   return (
     <>
-      <PageHeader title="Your view" intro="Switch off what you don't use, and choose how charts look. It only changes what you see."
+      <PageHeader title="My View" intro="Switch off what you don't use, and choose how charts look. It only changes what you see."
                   actions={<Button onClick={() => confirm('Put every feature, body, display choice and aspect colour back to how it started?') && run(update({ reset: true }))}>Reset to defaults</Button>} />
       {error && <Notice tone="error">{error}</Notice>}
-      <div class="tabs" role="tablist" aria-label="Your view">
+      <div class="tabs" role="tablist" aria-label="My View">
         {TABS.map(([key, label]) => (
           <button key={key} type="button" role="tab" aria-selected={tab === key} class={tab === key ? 'is-active' : ''}
                   onClick={() => setTab(key)}>{label}</button>

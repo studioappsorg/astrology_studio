@@ -632,7 +632,9 @@ def chart_midpoints(
     modulus: Annotated[float, Query()] = 90.0,
     orb: Annotated[float, Query(ge=0.1, le=5)] = 1.5,
     half: Annotated[bool, Query(description="Include the far end of the axis (45° on the 90° dial)")] = True,
-    bodies: Annotated[str, Query(description="Comma-separated bodies; default: your Your view bodies")] = "",
+    bodies: Annotated[
+        str, Query(description="Comma-separated bodies; default: the bodies switched on in My View")
+    ] = "",
     factor: str | None = None,
     degree: Annotated[float | None, Query(ge=0, lt=360)] = None,
     helio: bool = False,
@@ -850,12 +852,13 @@ def chart_events(
         str, Query(description="Comma-separated moving bodies; default: all but the Moon")
     ] = "",
     targets: Annotated[
-        str, Query(description="Comma-separated natal bodies to aspect; default: all your Your view bodies")
+        str,
+        Query(description="Comma-separated natal bodies to aspect; default: every body on in My View"),
     ] = "",
     majors_only: bool = True,
 ) -> dict[str, Any]:
     """Transits over up to two years; progressions and solar arc over up to 100 years. Targets
-    are your Your view bodies (or the ones in `targets`); aspects are the profile's (switched-on)
+    are the bodies switched on in My View (or the ones in `targets`); aspects are the profile's (switched-on)
     aspects."""
     span = (end - start).days
     limit = 731 if layer == "transits" else 36525

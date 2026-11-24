@@ -2,7 +2,7 @@
  * AstrologyStudio ·
  * web/src/pages/AspectsTab.tsx
  *
- * Your view → Aspects:
+ * My View → Aspects:
  *
  * which aspects you use, their orbs, and their colours.
  *

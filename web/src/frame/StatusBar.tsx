@@ -5,7 +5,7 @@
  * The status bar along the bottom:
  *
  * whether ephemeralREST is answering (checked every five minutes, and again when you click the
- * dot), what's open, how many charts you have, and the version. View → Status bar hides it.
+ * dot), what's open, how many charts you have, and the version. My View → Appearance → Status bar hides it.
  *
  * Copyright (c) 2026 Gavin Melhuish
  * MIT License; see LICENSE in the project root.

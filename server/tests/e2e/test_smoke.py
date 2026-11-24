@@ -375,11 +375,29 @@ def test_app_frame(page: Page) -> None:
     # Going back to a tab goes back to it.
     tabs.get_by_role("tab", name="Jane Doe").click()
     p.wait_for_url(f"**/charts/{page.chart_id()}")
-    # Menus: View → Dial switches the chart type, as the picker does.
-    p.get_by_role("menubar", name="Menu").get_by_role("button", name="View", exact=True).click()
-    p.get_by_role("menuitemradio", name="Dial").click()
+    # Menus: only File, Chart, Tools and Help drop down; My View goes straight to its page.
+    bar = p.get_by_role("menubar", name="Menu")
+    names = [b.strip() for b in bar.locator(".menu__trigger").all_inner_texts()]
+    assert names == ["File", "Chart", "Tools", "My View", "Help"]
+    bar.get_by_role("button", name="Chart", exact=True).click()
+    assert [i.strip() for i in p.get_by_role("menu").locator(".menu__label").all_inner_texts()] == [
+        "Edit details…",
+        "Returns",
+        "Client sheet",
+    ]
+    p.get_by_role("menuitem", name="Edit details…").click()
+    p.get_by_role("dialog", name=re.compile(r"^Edit ")).wait_for()
+    p.keyboard.press("Escape")
+    p.wait_for_url(f"**/charts/{page.chart_id()}")
+    bar.get_by_role("menuitem", name="My View").click()
+    p.wait_for_url("**/view")
+    expect(bar.get_by_role("menuitem", name="My View")).to_have_attribute("aria-current", "page")
+    tabs.get_by_role("button", name="Close My View").click()
+    tabs.get_by_role("tab", name="Jane Doe").click()
+    p.wait_for_url(f"**/charts/{page.chart_id()}")
+    # The chart type is the title bar's picker.
+    p.get_by_label("Chart type").select_option("dial")
     p.locator("svg.dial").wait_for()
-    expect(p.get_by_label("Chart type")).to_have_value("dial")
     # Alt+W closes the tab you're on and moves to its neighbour.
     p.keyboard.press("Alt+w")
     tabs.get_by_role("tab", name="Jane Doe").wait_for(state="detached")
@@ -421,7 +439,7 @@ def test_app_frame(page: Page) -> None:
 
 
 def test_aspects_in_your_view(page: Page) -> None:
-    """Your view → Aspects: an aspect switched off isn't drawn or listed; your colour is used on
+    """My View → Aspects: an aspect switched off isn't drawn or listed; your colour is used on
     the chart; each line carries its aspect's symbol."""
     p = page.page
     page.go(f"/charts/{page.chart_id()}")
@@ -560,7 +578,7 @@ def test_presets_as_sets_of_views(page: Page) -> None:
 
 
 def test_presets_tab(page: Page) -> None:
-    """Your view → Presets: edit a preset's views, set the default, duplicate, reorder, delete."""
+    """My View → Presets: edit a preset's views, set the default, duplicate, reorder, delete."""
     p = page.page
     p.on("dialog", lambda d: d.accept())
     page.api("POST", "/preferences/presets", {"name": "Tab test", "views": [{"display": "wheel"}]})
@@ -639,6 +657,7 @@ def test_new_chart_dialog_and_defaults(page: Page) -> None:
     p.get_by_role("button", name="Save defaults").click()
     p.get_by_text("Saved.", exact=True).wait_for()
     assert page.api("GET", "/preferences/defaults") == {"house_system": "koch", "place": "London, UK"}
+    p.get_by_role("tab", name="Calculation").click()
     p.get_by_text("Koch houses (default)").first.wait_for()  # the profile follows the default
 
     page.go("/charts/new")
@@ -743,3 +762,225 @@ def test_choices_survive_an_immediate_reload(page: Page) -> None:
     tabs.get_by_role("tab", name="Chart library").wait_for()
     p.wait_for_timeout(300)
     assert tabs.get_by_role("tab", name="Jane Doe").count() == 0
+
+
+def test_status_bar_switch_in_my_view(page: Page) -> None:
+    """The status bar is switched on and off under My View → Appearance."""
+    p = page.page
+    page.go("/view?tab=appearance")
+    switch = p.get_by_label(re.compile(r"^Show the status bar"))
+    expect(switch).to_be_checked()
+    switch.uncheck()
+    expect(p.locator(".status-bar")).to_have_count(0)
+    switch.check()
+    expect(p.locator(".status-bar")).to_have_count(1)
+
+
+def test_settings_sections(page: Page) -> None:
+    """Settings shows one section at a time under tabs; the address names the section, so a reload
+    or a link (?section=email) opens on it."""
+    p = page.page
+    page.go("/settings")
+    tabs = ["Defaults", "Calculation", "ephemeralREST", "Business", "Email", "New accounts", "Site themes"]
+    expect(p.get_by_role("tablist", name="Settings").get_by_role("tab")).to_have_text(tabs)
+    expect(p.get_by_label("Default house system")).to_be_visible()
+    expect(p.locator("#smtp-host")).to_have_count(0)
+    p.get_by_role("tab", name="Email").click()
+    expect(p.locator("#smtp-host")).to_be_visible()
+    assert p.url.endswith("/settings?section=email")
+    p.reload()
+    expect(p.get_by_role("tab", name="Email")).to_have_attribute("aria-selected", "true")
+    page.go("/settings?section=accounts")
+    expect(p.get_by_label("Allow new people to create accounts")).to_be_visible()
+
+
+def test_email_settings(page: Page) -> None:
+    """Settings → Email (owner): save the SMTP details, the password is kept but never shown, and
+    a test message that can't be sent says why."""
+    p = page.page
+    page.api("DELETE", "/email")
+    page.go("/settings")
+    p.get_by_role("tab", name="Email").click()
+    p.locator("#smtp-host").fill("localhost")
+    p.locator("#smtp-security").select_option("none")
+    expect(p.locator("#smtp-port")).to_have_value("25")
+    p.locator("#smtp-port").fill("1")  # nothing listens there
+    p.locator("#smtp-username").fill("studio")
+    p.locator("#smtp-password").fill("s3cret")
+    p.locator("#smtp-from").fill("studio@example.com")
+    p.get_by_role("button", name="Save email settings").click()
+    p.get_by_text("Saved. Send a test message").wait_for()
+    expect(p.locator("#smtp-password")).to_have_value("")
+    expect(p.locator("#smtp-password")).to_have_attribute("placeholder", re.compile("saved"))
+    saved = page.api("GET", "/email")
+    assert saved["has_password"] and "password" not in saved and saved["port"] == 1
+    p.get_by_role("button", name="Send test").click()
+    p.get_by_text("Couldn't reach the email server").wait_for()
+    page.errors.clear()  # the browser logs the refused send (502) as an error; that's expected here
+    page.api("DELETE", "/email")
+
+
+def test_forgot_password(page: Page, browser: Any, server: str, monkeypatch: pytest.MonkeyPatch) -> None:
+    """With email set up, "Forgot your password?" emails a link that sets a new password."""
+    from astrologystudio import mail
+
+    from ..test_email import GOOD, FakeSMTP
+
+    FakeSMTP.sent, FakeSMTP.calls, FakeSMTP.refuse_login = [], [], False
+    monkeypatch.setattr(mail, "SMTP", FakeSMTP)
+    monkeypatch.setattr(mail, "SMTP_SSL", FakeSMTP)
+    page.api("PUT", "/email", GOOD)
+    ann = page.api(
+        "POST", "/users", {"name": "Ann", "email": "ann@example.com", "password": "first-password-1"}
+    )
+
+    # Ann, in a browser of her own.
+    context = browser.new_context()
+    try:
+        p = context.new_page()
+        p.goto(server + "/")
+        p.get_by_role("button", name="Forgot your password?").click()
+        p.locator("#forgot-email").fill("ann@example.com")
+        p.get_by_role("button", name="Email me a link").click()
+        p.get_by_role("heading", name="Check your email").wait_for()
+        link = re.search(r"(/reset-password\?token=\S+)", FakeSMTP.sent[-1].get_content())
+        assert link
+        p.goto(server + link.group(1))
+        p.get_by_role("heading", name="Choose a new password").wait_for()
+        p.locator("#reset-password").fill("second-password-2")
+        p.locator("#reset-again").fill("second-password-2")
+        p.get_by_role("button", name="Set new password").click()
+        p.get_by_text("Your password has been changed.").wait_for()
+        assert p.url.endswith("/")
+        p.get_by_label("Password").fill("second-password-2")
+        p.get_by_role("button", name="Log in").click()
+        p.wait_for_url("**/charts")
+        # The link is used up; opened while logged in, it goes to Account (to change it there).
+        token = link.group(1).split("token=")[1]
+        assert p.request.get(f"{server}/api/v1/auth/password-reset/{token}").status == 410
+        p.goto(server + link.group(1))
+        p.wait_for_url("**/account")
+    finally:
+        context.close()
+        page.api("DELETE", f"/users/{ann['id']}")
+        page.api("DELETE", "/email")
+
+
+def _png(width: int, height: int, rgba: tuple[int, int, int, int]) -> bytes:
+    """A small solid-colour PNG, made by hand so the test needs nothing extra."""
+    import struct
+    import zlib
+
+    def chunk(kind: bytes, data: bytes) -> bytes:
+        return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", zlib.crc32(kind + data))
+
+    row = b"\0" + bytes(rgba) * width
+    return (
+        b"\x89PNG\r\n\x1a\n"
+        + chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0))
+        + chunk(b"IDAT", zlib.compress(row * height))
+        + chunk(b"IEND", b"")
+    )
+
+
+def test_logo_on_saved_pictures_and_sheets(page: Page, tmp_path: Any) -> None:
+    """Settings → Logo (owner): the logo goes in the bottom right of saved pictures, which name
+    the charts across the top, and on the client sheet."""
+    p = page.page
+    logo = tmp_path / "logo.png"
+    logo.write_bytes(_png(160, 40, (180, 83, 47, 255)))
+    page.go("/settings?section=business")
+    expect(p.get_by_text("No logo yet")).to_be_visible()
+    p.get_by_label("Logo file").set_input_files(str(logo))
+    p.get_by_text("Saved. It will be on chart images").wait_for()
+    expect(p.locator(".logo-card__preview img")).to_be_visible()
+    assert page.api("GET", "/branding")["logo"].startswith("data:image/png;base64,")
+
+    chart = page.chart_id()
+    page.go(f"/charts/{chart}")
+    p.locator("svg.wheel").first.wait_for()
+    with p.expect_download() as download:
+        p.get_by_role("button", name="SVG").click()
+    svg = open(download.value.path(), encoding="utf-8").read()  # noqa: SIM115
+    assert "Jane Doe" in svg and "data:image/png;base64," in svg and "<image" in svg
+    with p.expect_download() as download:
+        p.get_by_role("button", name="PNG").click()
+    head = open(download.value.path(), "rb").read(24)  # noqa: SIM115
+    width, height = int.from_bytes(head[16:20], "big"), int.from_bytes(head[20:24], "big")
+    assert width == 1600 and height > 1600  # room above for the chart details and below for the logo
+
+    page.go(f"/charts/{chart}/sheet")
+    expect(p.locator(".sheet__business .sheet__logo")).to_be_visible()
+
+    # Business details print with the logo in the box at the bottom right of the sheet.
+    page.go("/settings?section=business")
+    p.get_by_label("Business details").fill("Starlight Astrology\n0400 000 000")
+    p.get_by_role("button", name="Save details").click()
+    p.get_by_text("Saved. Your details").wait_for()
+    assert page.api("GET", "/branding")["details"] == "Starlight Astrology\n0400 000 000"
+    page.go(f"/charts/{chart}/sheet")
+    expect(p.locator(".sheet__business .sheet__details")).to_have_text("Starlight Astrology\n0400 000 000")
+    expect(p.locator(".sheet__brand")).to_have_count(0)
+
+    page.go("/settings?section=business")
+    p.on("dialog", lambda d: d.accept())
+    p.get_by_role("button", name="Remove").click()
+    expect(p.get_by_text("No logo yet")).to_be_visible()
+    assert page.api("GET", "/branding")["logo"] is None
+
+
+SHEET_HEIGHTS = (
+    "[...document.querySelectorAll('article.sheet')].map((e) => e.getBoundingClientRect().height * 25.4 / 96)"
+)
+
+
+def test_client_sheet_pages(page: Page) -> None:
+    """The client sheet prints on one portrait page of A4 or US Letter with the usual bodies, and on
+    exactly two (the wheel across page 1 with the business box; the rest on page 2) with every body
+    on. No page is ever taller than the space A4 and Letter share."""
+    from astrologystudio import catalog
+
+    p = page.page
+    chart = page.chart_id()
+    page.api("PUT", "/branding/details", {"details": "Starlight Astrology\n0400 000 000"})
+    for bodies, expected in ((None, 1), (dict.fromkeys(catalog.BODY_KEYS, True), 2)):
+        if bodies:
+            page.api("PATCH", "/preferences/view", {"bodies": bodies})
+        page.go(f"/charts/{chart}/sheet")
+        expect(p.locator(".sheet .aspect-grid")).to_be_visible()
+        expect(p.locator("article.sheet")).to_have_count(expected)
+        expect(p.locator(".sheet__details")).to_be_visible()
+        if expected == 2:
+            expect(p.locator(".sheet--first .sheet__business")).to_be_visible()
+            expect(p.locator(".sheet--second .aspect-grid")).to_be_visible()
+        p.emulate_media(media="print")
+        for size in ("A4", "Letter"):
+            pages = len(re.findall(rb"/Type\s*/Page[^s]", p.pdf(format=size)))
+            assert pages == expected, f"{size}: {pages} pages"
+        heights = p.evaluate(SHEET_HEIGHTS)
+        p.emulate_media(media="screen")
+        # 255 mm is the height A4 and Letter share inside 10 mm margins.
+        assert all(mm <= 255.5 for mm in heights), heights
+
+
+def test_overview_tab(page: Page) -> None:
+    """The Overview tab follows Chart: elements and modalities with the chart signature, and the
+    rest of the basics; the counting choice is remembered and the client sheet shows the balance."""
+    p = page.page
+    chart = page.chart_id()
+    page.go(f"/charts/{chart}")
+    p.locator("svg.wheel").first.wait_for()
+    tabs = p.get_by_role("tablist", name="Reports").get_by_role("tab")
+    assert tabs.nth(0).get_attribute("aria-label") == "Chart"
+    assert tabs.nth(1).get_attribute("aria-label") == "Overview"
+    tabs.nth(1).click()
+    expect(p.get_by_text("Chart signature")).to_be_visible()
+    for heading in ("Elements and modalities", "Chart shape", "Patterns", "Dignities and rulerships"):
+        expect(p.locator(".report__section", has_text=heading)).to_be_visible()
+    total = p.locator(".em-table__totals .em-table__total")
+    expect(total).to_have_text("10")
+    p.get_by_label("What to count").select_option("angles")
+    expect(total).to_have_text("12")
+    page.go(f"/charts/{chart}/sheet")
+    expect(p.locator(".sheet .em-table__totals .em-table__total")).to_have_text("12")
+    expect(p.locator(".sheet__signature")).to_contain_text("Signature")

@@ -17,7 +17,8 @@ import { ASPECT_INFO, BODY_LETTERS, degrees, dignities, dm, HOUSE_SYSTEM_NAMES, 
 import { AspectGrid } from '../components/AspectGrid';
 import { TimingControls, TimingPane } from '../components/Timing';
 import { ChartModal, derivedLine, SlotCard, type SlotRef } from '../components/ChartSlots';
-import { ExportButtons } from '../components/Export';
+import { ExportButtons, type ExportChart } from '../components/Export';
+import { OverviewReport } from './OverviewReport';
 import { Workspace } from '../components/Workspace';
 import { Wheel, type WheelRing } from '../components/Wheel';
 import { Dial } from '../components/Dial';
@@ -64,9 +65,11 @@ interface SlotChart {
   aspects: FoundAspect[];
   /** Sect, lords, solar phase and whole-sign houses, when drawn as a Hellenistic chart. */
   hellenistic: HellenisticBlock | null;
+  /** Set for noon because the birth time isn't known: the houses and angles are placeholders. */
+  timeUnknown: boolean;
 }
 
-/** The bodies a Hellenistic chart shows: the seven planets (unless switched off in Your view),
+/** The bodies a Hellenistic chart shows: the seven planets (unless switched off in My View),
  * the Ascendant and MC, Fortune and Spirit always, and the other lots if switched on. */
 const SEVEN = ['sun', 'moon', 'mercury', 'venus', 'mars', 'jupiter', 'saturn'];
 const HELLENISTIC_ALWAYS = new Set(['asc', 'mc', 'part_of_fortune', 'lot_spirit']);
@@ -81,12 +84,12 @@ function loadSlot(ref: SlotRef | null, hellenistic: boolean): Promise<SlotChart 
   if (ref.derived) {
     return api<DerivedDetail>(`/charts/derived/${ref.id}${query}`).then((d) => ({
       id: d.id, name: d.name, line: derivedLine(d), home: d.parent_id ?? ref.parent ?? d.id,
-      points: d.points, houses: d.houses, aspects: d.aspects, hellenistic: d.hellenistic ?? null,
+      points: d.points, houses: d.houses, aspects: d.aspects, hellenistic: d.hellenistic ?? null, timeUnknown: false,
     }));
   }
   return api<ChartDetail>(`/charts/${ref.id}${query}`).then((c) => ({
     id: c.id, name: c.name, line: birthLine(c), home: c.id, points: c.points, houses: c.houses, aspects: c.aspects,
-    hellenistic: c.hellenistic ?? null,
+    hellenistic: c.hellenistic ?? null, timeUnknown: !!c.note?.time_unknown,
   }));
 }
 
@@ -154,6 +157,7 @@ function ViewScreen({ id, handle, view }: { id: string; handle: ChartViewsHandle
 
   const reports: Array<[Report, string, string]> = [
     ['chart', 'Chart', '☉'],
+    ...(feature('overview') ? [['overview', 'Overview', '◐'] as [Report, string, string]] : []),
     ['aspects', 'Aspects', '△'],
     ...(feature('midpoints') ? [['midpoints', 'Midpoints', '⊥'] as [Report, string, string]] : []),
     ...(feature('hellenistic') ? [['hellenistic', 'Hellenistic', '⊗'] as [Report, string, string]] : []),
@@ -357,7 +361,18 @@ function ViewScreen({ id, handle, view }: { id: string; handle: ChartViewsHandle
     const lons = (c: SlotChart, keys: string[]) => Object.fromEntries(keys.filter((k) => c.points[k]).map((k) => [k, c.points[k]!.lon]));
     return (
       <Workspace panel={panel} above={viewsRow} bar={bar} dock={dock} report>
-        {!drawn || !base ? waiting : report === 'aspects' ? (
+        {!drawn || !base ? waiting : report === 'overview' && current ? (
+          <OverviewReport chart={current} shown={currentKeys} glyphs={glyphs} focus={focus} onFocus={setFocus}
+                          label={(k) => catalog.bodies.find((b) => b.key === k)?.label ?? k}
+                          choice={partner && (
+                            <div class="segmented" role="group" aria-label="Which chart">
+                              {[0, 1].map((i) => (
+                                <button key={i} type="button" class={currentIndex === i ? 'is-active' : ''} aria-pressed={currentIndex === i}
+                                        onClick={() => setSelected(i)}>Chart {i + 1}</button>
+                              ))}
+                            </div>
+                          )} />
+        ) : report === 'aspects' ? (
           <AspectsReport base={base} partner={partner} selected={currentIndex} between={between}
                          onChoose={(which) => { if (which === 'between') setBetween(true); else { setBetween(false); setSelected(which); } }}
                          ownKeys={currentKeys} ownAspects={currentAspects} baseKeys={baseKeys} partnerKeys={partnerKeys}
@@ -387,7 +402,7 @@ function ViewScreen({ id, handle, view }: { id: string; handle: ChartViewsHandle
   return (
     <Workspace panel={panel} above={viewsRow} bar={bar} dock={dock} stageFooter={
       <div class="wheel-actions">
-        <ExportButtons target={wheelBox} name={exportName} />
+        <ExportButtons target={wheelBox} name={exportName} charts={[base, partner]} />
         <Link href={`/charts/${id}/sheet`} class="link-button">Client sheet</Link>
         {hellenistic && <Checkbox label="Modern bodies" checked={modernBodies} onChecked={setModernBodies} />}
       </div>
@@ -487,6 +502,12 @@ function SlotPositions({ points, keys, houses, focus, onFocus, hellenistic, deta
   );
 }
 
+/** When and where, for a chart worked out here (a return, composite or Davison chart). */
+export function dataLine(data: ChartData): string {
+  const local = data.datetime_local || data.datetime_utc;
+  return [fmtDate(local.slice(0, 10)), local.slice(11, 16), data.location?.name].filter(Boolean).join(' · ');
+}
+
 export function birthLine(chart: ChartDetail): string {
   const time = chart.note.time_unknown ? 'time unknown' : fmtTime(chart.time);
   return [fmtDate(chart.date), time, chart.place].filter(Boolean).join(' · ');
@@ -566,9 +587,11 @@ const aspectKind = (key: string) => ASPECT_INFO[key]?.kind ?? 'neutral';
  * A chart that isn't in the list (a composite, Davison or return): wheel, positions,
  * aspects and houses. `outer` adds another chart around it, such as the natal chart.
  */
-export function SimpleChart({ data, aspects, outer, title, top }: {
+export function SimpleChart({ data, aspects, outer, title, top, charts }: {
   data: ChartData & { aspects?: FoundAspect[] }; aspects?: FoundAspect[]; outer?: { points: Record<string, Point>; label: string } | null;
   title: string;
+  /** Named across the top of a saved picture; by default this chart. */
+  charts?: Array<ExportChart | null>;
   /** What sits above the tables in the panel: the page's own controls. */
   top?: preact.ComponentChildren;
 }) {
@@ -599,7 +622,7 @@ export function SimpleChart({ data, aspects, outer, title, top }: {
     } stageFooter={
       <div class="wheel-actions">
         {outer && <span class="muted small"><span class="layer-key layer-key--1" />Outer ring: {outer.label}</span>}
-        <ExportButtons target={box} name={title} />
+        <ExportButtons target={box} name={title} charts={charts ?? [{ name: data.name || title, line: dataLine(data) }]} />
       </div>
     }>
       <div class="stage-chart" ref={box}>

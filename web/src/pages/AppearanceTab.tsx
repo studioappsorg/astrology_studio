@@ -2,7 +2,7 @@
  * AstrologyStudio ·
  * web/src/pages/AppearanceTab.tsx
  *
- * Your view → Appearance:
+ * My View → Appearance:
  *
  * the theme gallery (choose, copy, edit, share, import) and the display options (symbols, sizes,
  * line weight, and how degrees, dates and times are written).
@@ -19,6 +19,7 @@ import { navigate } from '../router';
 import { useSession } from '../session';
 import { Button, describe, Notice } from '../ui';
 import { useView } from '../view';
+import { useStatusBar } from '../frame/layout';
 
 const KIND_LABEL: Record<Theme['kind'], string> = { builtin: 'Built-in', site: 'For everyone', own: 'Yours' };
 
@@ -162,6 +163,7 @@ function Radios<K extends keyof Appearance>({ name, legend, value, choices, onPi
 
 function DisplayOptions({ appearance: a, change }: { appearance: Appearance; change: (p: Partial<Appearance>) => void }) {
   const { display, update } = useView();
+  const [statusBar, setStatusBar] = useStatusBar();
   return (
     <section class="card form-card">
       <h2>Display</h2>
@@ -189,6 +191,13 @@ function DisplayOptions({ appearance: a, change }: { appearance: Appearance; cha
           <label class="check">
             <input type="checkbox" checked={a.reduce_motion} onChange={(e) => change({ reduce_motion: e.currentTarget.checked })} />
             <span>Reduce motion <small class="muted">No animated transitions</small></span>
+          </label>
+        </fieldset>
+        <fieldset class="switches switches--wide option-row">
+          <legend>Status bar</legend>
+          <label class="check">
+            <input type="checkbox" checked={statusBar} onChange={(e) => setStatusBar(e.currentTarget.checked)} />
+            <span>Show the status bar <small class="muted">The line along the bottom: ephemeralREST, the chart, the version</small></span>
           </label>
         </fieldset>
       </div>

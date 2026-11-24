@@ -221,6 +221,53 @@ def end_other_sessions(conn: sqlite3.Connection, user_id: str, keep_token: str |
 
 
 # ---------------------------------------------------------------------------
+# Password resets ("Forgot your password?")
+
+RESET_LIFETIME = timedelta(hours=1)
+RESET_GAP = timedelta(minutes=1)
+"""At most one reset email a minute per account, so the form can't be used to flood an inbox."""
+
+
+def start_reset(conn: sqlite3.Connection, user_id: str) -> str | None:
+    """A new reset token for the account (only its hash is kept), or None if one was made in the
+    last minute."""
+    moment = datetime.now(UTC)
+    recent = conn.execute(
+        "SELECT 1 FROM password_resets WHERE user_id = ? AND created_at > ?",
+        (user_id, _iso(moment - RESET_GAP)),
+    ).fetchone()
+    if recent:
+        return None
+    conn.execute("DELETE FROM password_resets WHERE expires_at < ?", (_iso(moment),))
+    token = secrets.token_urlsafe(32)
+    conn.execute(
+        "INSERT INTO password_resets (token_hash, user_id, created_at, expires_at) VALUES (?, ?, ?, ?)",
+        (_token_hash(token), user_id, _iso(moment), _iso(moment + RESET_LIFETIME)),
+    )
+    return token
+
+
+def reset_user(conn: sqlite3.Connection, token: str) -> sqlite3.Row | None:
+    """The account a reset token is for, while it's unused and in date."""
+    row: sqlite3.Row | None = conn.execute(
+        "SELECT users.id, users.email FROM password_resets JOIN users ON users.id = password_resets.user_id"
+        " WHERE token_hash = ? AND used_at IS NULL AND expires_at > ? AND users.signs_in_with = 'password'",
+        (_token_hash(token), _iso(datetime.now(UTC))),
+    ).fetchone()
+    return row
+
+
+def finish_reset(conn: sqlite3.Connection, token: str, user_id: str, password: str) -> None:
+    """Set the new password, use up every reset link for the account, and log it out everywhere."""
+    conn.execute("UPDATE users SET password_hash = ? WHERE id = ?", (hash_password(password), user_id))
+    conn.execute(
+        "UPDATE password_resets SET used_at = ? WHERE user_id = ? AND used_at IS NULL",
+        (_iso(datetime.now(UTC)), user_id),
+    )
+    end_other_sessions(conn, user_id, None)
+
+
+# ---------------------------------------------------------------------------
 # Login throttling
 
 

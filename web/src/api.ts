@@ -106,6 +106,8 @@ export interface Session {
 export interface AuthStatus {
   setup_required: boolean;
   registration_open: boolean;
+  /** "Forgot your password?" is offered (the owner has set up email). */
+  password_reset?: boolean;
   /** A hosted service: ephemeralREST is kept out of sight for everyone but the owner. */
   hosted?: boolean;
   user: Session | null;

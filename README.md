@@ -52,14 +52,14 @@ cd web && npm run build && cd ../server && ../.venv/bin/pytest -m e2e -q
 
 ## Status
 
-- [x] 0.1 Foundation: installer, accounts, ephemeralREST connection, per-person keys, Your view switches
+- [x] 0.1 Foundation: installer, accounts, ephemeralREST connection, per-person keys, My View switches
 - [x] 0.2 Charts in: list, search, folders, tags, new and corrected charts, shared charts
 - [x] 0.3 Natal wheel: wheel, positions, aspects, houses, profiles, heliocentric
 - [x] 0.4 Transits and directions: transits, progressions, solar arc, bi- and tri-wheels, time stepping
 - [x] 0.5 Cosmobiology: 90°, 120° and 360° dials, pointer, outer ring, midpoint trees, sort and search
 - [x] 0.6 Relationships and returns: synastry, composite, Davison, solar and lunar returns
 - [x] 0.7 Time tools and harmonics: event lists, ephemeris page, harmonic charts
-- [x] 0.8 Output and your view: PNG and SVG export, client sheet, glyph and colour choices, Your view page
+- [x] 0.8 Output and your view: PNG and SVG export, client sheet, glyph and colour choices, My View page
 - [x] 0.9 Beta: user guide, release workflow, phone layout, long lists
 - [x] 1.0 Release
 - [x] 1.2 Three schools: Hellenistic chart, lots, timing; dials in Ebertin's layout

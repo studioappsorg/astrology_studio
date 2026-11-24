@@ -2,7 +2,7 @@
  * AstrologyStudio ·
  * web/src/pages/ChartsDialsTab.tsx
  *
- * Your view → Charts & dials:
+ * My View → Charts & dials:
  *
  * which dial sizes are offered, the layouts each chart type can be drawn with (chosen from the
  * Layout picker in the top bar on the chart screen), and whether the chart wheel draws lines from

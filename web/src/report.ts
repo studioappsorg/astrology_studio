@@ -10,9 +10,9 @@
  */
 
 /** The chart screen's reports, in the tabs across the top of every chart. One at a time. */
-export type Report = 'chart' | 'aspects' | 'midpoints' | 'hellenistic' | 'events';
+export type Report = 'chart' | 'overview' | 'aspects' | 'midpoints' | 'hellenistic' | 'events';
 export const isReport = (v: unknown): v is Report =>
-  v === 'chart' || v === 'aspects' || v === 'midpoints' || v === 'hellenistic' || v === 'events';
+  v === 'chart' || v === 'overview' || v === 'aspects' || v === 'midpoints' || v === 'hellenistic' || v === 'events';
 
 /** Which report a preset's panel switches mean (presets keep the switches from before the tabs). */
 export function reportOf(panel: { aspectarian: boolean; trees: boolean; timing: boolean }): Report {

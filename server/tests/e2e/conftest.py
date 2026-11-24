@@ -173,6 +173,9 @@ def page(server: str, browser: Any, request: pytest.FixtureRequest) -> Iterator[
     )
     wrapped.api("PATCH", "/preferences/appearance", {"theme": "studio", "text_size": 100})
     wrapped.api("PUT", "/preferences/defaults", {"house_system": "placidus", "place": ""})
+    wrapped.api("DELETE", "/email")
+    wrapped.api("DELETE", "/branding/logo")
+    wrapped.api("PUT", "/branding/details", {"details": ""})
     # Every feature on, so each test can reach what it checks (new people start with fewer).
     wrapped.api(
         "PATCH",

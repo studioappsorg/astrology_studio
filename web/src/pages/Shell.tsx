@@ -32,7 +32,7 @@ import { GettingStarted } from './GettingStarted';
 import { NotFound } from './NotFound';
 import { SettingsPage } from './Settings';
 import { Users } from './Users';
-import { YourView } from './YourView';
+import { MyView } from './MyView';
 import { LayoutEditor } from './LayoutEditor';
 import { ThemeEditor } from './ThemeEditor';
 import { setPref } from '../prefs';
@@ -70,12 +70,19 @@ export const ROUTES: Array<[string, (p: Params) => JSX.Element]> = [
   ['/charts/:id/sheet', (p) => <Sheet key={p.id} id={p.id!} />],
   ['/start', () => <GettingStarted />],
   ['/settings', () => <SettingsPage />],
-  ['/view', () => <YourView />],
+  ['/view', () => <MyView />],
   ['/view/themes/:id', (p) => <ThemeEditor key={p.id} id={p.id!} />],
   ['/view/layouts/:id', (p) => <LayoutEditor key={p.id} id={p.id!} />],
   ['/users', () => <Users />],
   ['/account', () => <Account />],
+  // A reset link opened while logged in: change the password under Account instead.
+  ['/reset-password', () => <Redirect to="/account" />],
 ];
+
+function Redirect({ to }: { to: string }) {
+  useEffect(() => navigate(to, { replace: true }), [to]);
+  return null;
+}
 
 export function Shell() {
   const rawPath = usePath();

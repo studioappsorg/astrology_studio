@@ -2,7 +2,8 @@
  * AstrologyStudio ·
  * web/src/pages/Settings.tsx
  *
- * Install settings (the ephemeralREST address), your defaults, and Your view (features and bodies).
+ * Settings, in sections: Defaults, Calculation (profiles), ephemeralREST, and for the owner Business
+ * (details and logo), Email (SMTP), New accounts and Site themes. ?section=email opens on one.
  *
  * Copyright (c) 2026 Gavin Melhuish
  * MIT License; see LICENSE in the project root.
@@ -15,48 +16,95 @@ import { useSession } from '../session';
 import { Link } from '../router';
 import { Button, Checkbox, describe, Field, Loading, Notice, PageHeader, Select, useLoad, useSubmit } from '../ui';
 import { Profiles } from './Profiles';
+import { EmailSettings } from './EmailSettings';
+import { LogoSettings } from './LogoSettings';
 import { PROFILE_CHANGED, useAppearance } from '../appearance';
+import { oneOf } from '../prefs';
 import { PlaceField } from './ChartForm';
 import { saveDefaults, useDefaults } from '../defaults';
 import { plainWording } from '../hosted';
 
+type Section = 'defaults' | 'calculation' | 'ephemeral' | 'business' | 'email' | 'accounts' | 'themes';
+const SECTIONS: Array<[Section, string, boolean]> = [
+  // [key, label, owner only]
+  ['defaults', 'Defaults', false],
+  ['calculation', 'Calculation', false],
+  ['ephemeral', 'ephemeralREST', false],
+  ['business', 'Business', true],
+  ['email', 'Email', true],
+  ['accounts', 'New accounts', true],
+  ['themes', 'Site themes', true],
+];
+const isSection = oneOf<Section>(...SECTIONS.map(([key]) => key));
+
+/** The section in the address (?section=email), so a reload or a link opens on it. */
+function sectionFromAddress(): Section | null {
+  const wanted = new URLSearchParams(location.search).get('section');
+  return isSection(wanted) ? wanted : null;
+}
+
 export function SettingsPage() {
   const { session } = useSession();
-  const [connection, reload] = useLoad(() => api<Connection>('/connection'));
-  const [profilesKey, setProfilesKey] = useState(0);
+  const owner = session.user.is_owner;
+  const sections = SECTIONS.filter(([key, , ownerOnly]) => (owner || !ownerOnly) && !(key === 'ephemeral' && plainWording()));
+  const [chosen, setChosen] = useState<Section>(() => sectionFromAddress() ?? 'defaults');
+  const section = sections.some(([key]) => key === chosen) ? chosen : 'defaults';
+  const choose = (next: Section) => {
+    setChosen(next);
+    const url = new URL(location.href);
+    if (next === 'defaults') url.searchParams.delete('section');
+    else url.searchParams.set('section', next);
+    history.replaceState(null, '', url.pathname + url.search);
+  };
   return (
     <>
       <PageHeader title="Settings" />
-      <div class="columns">
-        {!plainWording() && <section class="card form-card">
-          <h2>ephemeralREST</h2>
-          <Loading result={connection}>
-            {() =>
-              connection.state === 'ready' &&
-              (session.user.is_owner ? (
-                <ConnectionForm current={connection.data} onSaved={reload} />
-              ) : (
-                <ConnectionFacts current={connection.data} />
-              ))
-            }
-          </Loading>
-        </section>}
-        <DefaultsCard onSaved={() => setProfilesKey((k) => k + 1)} />
-        {session.user.is_owner && <Registration />}
-        {session.user.is_owner && <SiteThemes />}
-        <section class="card form-card">
-          <h2>Your view</h2>
-          <p class="muted">Which features, bodies and points you see, your theme, and how charts and dials are drawn.</p>
-          <div class="actions"><Link href="/view" class="btn">Open Your view</Link></div>
-        </section>
+      <div class="tabs" role="tablist" aria-label="Settings">
+        {sections.map(([key, label]) => (
+          <button key={key} type="button" role="tab" aria-selected={section === key} class={section === key ? 'is-active' : ''}
+                  onClick={() => choose(key)}>{label}</button>
+        ))}
       </div>
-      <Profiles key={profilesKey} />
+      <div class="settings-section" role="tabpanel" aria-label={sections.find(([key]) => key === section)?.[1]}>
+        {section === 'defaults' && (
+          <>
+            <DefaultsCard />
+            <section class="card form-card">
+              <h2>My View</h2>
+              <p class="muted">Which features, bodies and points you see, your theme, and how charts and dials are drawn.</p>
+              <div class="actions"><Link href="/view" class="btn">Open My View</Link></div>
+            </section>
+          </>
+        )}
+        {section === 'calculation' && <Profiles />}
+        {section === 'ephemeral' && <EphemeralCard owner={owner} />}
+        {section === 'business' && <LogoSettings />}
+        {section === 'email' && <EmailSettings />}
+        {section === 'accounts' && <Registration />}
+        {section === 'themes' && <SiteThemes />}
+      </div>
     </>
   );
 }
 
+/** The ephemeralREST address everyone here uses: the owner can change it, everyone else sees it. */
+function EphemeralCard({ owner }: { owner: boolean }) {
+  const [connection, reload] = useLoad(() => api<Connection>('/connection'));
+  return (
+    <section class="card form-card">
+      <h2>ephemeralREST</h2>
+      <p class="muted">The calculation service that stores your charts and works out every position.</p>
+      <Loading result={connection}>
+        {() => connection.state === 'ready' && (owner
+          ? <ConnectionForm current={connection.data} onSaved={reload} />
+          : <ConnectionFacts current={connection.data} />)}
+      </Loading>
+    </section>
+  );
+}
+
 /** Your default house system (for profiles without their own) and your default place. */
-function DefaultsCard({ onSaved }: { onSaved: () => void }) {
+function DefaultsCard() {
   const defaults = useDefaults();
   const [calc] = useLoad(() => api<Calculation>('/preferences/calculation'));
   const [system, setSystem] = useState('');
@@ -70,7 +118,6 @@ function DefaultsCard({ onSaved }: { onSaved: () => void }) {
     await saveDefaults({ house_system: system, place: place.trim() });
     setSaved(true);
     window.dispatchEvent(new Event(PROFILE_CHANGED)); // charts on screen redraw their houses
-    onSaved();
   });
   const systems = calc.state === 'ready' ? calc.data.house_systems : [];
   return (
@@ -155,7 +202,7 @@ function SiteThemes() {
   return (
     <section class="card form-card">
       <h2>Site themes</h2>
-      <p class="muted">Themes you share are offered to everyone here. To share one of yours, choose “Share with everyone” on it in Your view → Appearance.</p>
+      <p class="muted">Themes you share are offered to everyone here. To share one of yours, choose “Share with everyone” on it in My View → Appearance.</p>
       {error && <Notice tone="error">{error}</Notice>}
       <label class="field">
         <span>Theme for new accounts</span>

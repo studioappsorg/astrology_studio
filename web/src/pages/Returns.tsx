@@ -16,7 +16,7 @@ import { ChartPicker, ChartTools } from '../components/ChartPicker';
 import { Button, Checkbox, Field, Loading, Notice, useLoad, useSubmit } from '../ui';
 import { useView } from '../view';
 import { useDefaults } from '../defaults';
-import { birthLine, EmptyWorkspace, SimpleChart } from './ChartView';
+import { birthLine, dataLine, EmptyWorkspace, SimpleChart } from './ChartView';
 
 type Kind = 'solar' | 'lunar';
 type ReturnChart = ChartData & { aspects: FoundAspect[]; kind: Kind; return_utc: string | null };
@@ -76,6 +76,8 @@ function ReturnsScreen({ chart }: { chart: ChartDetail }) {
     </>
   );
   if (!result) return <EmptyWorkspace top={top} message="Choose a year and press Calculate." />;
+  const returnChart = { name: result.name || `${chart.name}, ${result.kind} return`, line: dataLine(result) };
   return <SimpleChart data={result} title={`${result.kind} return`} top={top}
+                      charts={[returnChart, withNatal ? { name: `${chart.name}, natal`, line: birthLine(chart) } : null]}
                       outer={withNatal ? { points: chart.points, label: `${chart.name}, natal` } : null} />;
 }

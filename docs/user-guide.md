@@ -8,7 +8,7 @@ the working tools around it.
 ## Getting started
 
 1. **Create the owner account.** The first person to open a new install becomes its owner.
-2. **Connect to ephemeralREST** (owner only): Settings → ephemeralREST address. The address is
+2. **Connect to ephemeralREST** (owner only): Settings → ephemeralREST. The address is
    checked before it's saved. The installer can set it for you with `--ephemeral`.
 3. **Add your API key**: Account → Your ephemeralREST key. Each person uses their own key; it's
    checked with ephemeralREST, then stored encrypted. Your key is in the email ephemeralREST
@@ -32,17 +32,63 @@ These accounts use their ephemeralREST password, so it's changed in ephemeralRES
 Account. They're marked *ephemeralREST* under Users. Switching registration off again stops new
 sign-ups only; people who already have accounts still log in.
 
+### Email (owner)
+
+Settings → **Email** is where the owner sets the mail server everything in AstrologyStudio sends
+email through, so it all comes from one server and one address. Use the SMTP details from your
+email provider or sending service (Postmark, Mailgun, SMTP2GO, AuthSMTP, Amazon SES and so on):
+
+- **SMTP server**, **Security** and **Port**: STARTTLS on port 587 is the usual choice; SSL/TLS
+  on port 465 also works with most services. *None* is only for a server on the same machine or
+  network, since the password would travel unencrypted.
+- **Username** and **Password**: the password is kept encrypted with the install's secret key and
+  is never shown again; leave the box empty to keep it, or tick *Remove the saved password*.
+- **From address** (one your server lets you send from), **From name** and an optional
+  **Reply-to**.
+
+*Send test* sends a short message (to your own address unless you give another) and, if it
+can't be sent, says why: the server didn't answer, refused the login, or won't send from that
+address. Only the owner sees or changes these settings. The emails ephemeralREST sends (sign-up,
+password and sign-in codes) come from ephemeralREST, not from here.
+
+### Business details and logo (owner)
+
+Settings → **Business** is where the owner enters their business or contact
+details and uploads a logo, for everyone on this install.
+
+- **Business details** is one text box, up to 1,000 characters: type it as you'd like it printed,
+  line by line (your name, business, address, phone, email, website), then *Save details*.
+- **Logo**: PNG, JPEG, WebP or SVG. A wide logo on a transparent background works best; large
+  pictures are scaled down when you upload them (to 800 pixels on the longer side) and the file
+  must end up under 1 MB. *Replace logo…* swaps it and *Remove* takes it off.
+
+Both print in a box at the bottom right of every client sheet, the logo above the details (on a
+two-page sheet, under the wheel on page 1). The logo
+also goes in the bottom right of every saved PNG and SVG.
+
+### Forgot your password?
+
+Once email is set up, the login page offers **Forgot your password?**. Enter your email and, if
+there's an account for it, a link to choose a new password is emailed. The link works once, for
+an hour; setting a new password logs the account out everywhere else. The page says the same
+thing whether or not the address has an account, so it can't be used to find out who does.
+Accounts that sign in through ephemeralREST get an email saying their password is changed there.
+Without email, the owner can give someone a new password by running `astrologystudio
+reset-password --email them@…` on the server.
+
 ## Finding your way around
 
 AstrologyStudio is laid out like a desktop program, and the browser page itself never scrolls:
 
-- **Title bar and menus** across the top. *File* (new chart, open, add a shared chart, the chart
-  library, close the tab, account, log out), *View* (chart type, status bar, dark mode, tabs,
-  Your view), *Chart* (the chart's own screens: with another chart, returns, client
-  sheet, edit), *Tools* (Ephemeris, Your view, Settings, Users) and *Help*. On the chart screen the
-  Preset, Chart type and Layout pickers sit at the right, with the ☀/☾ light/dark switch and your
-  account menu.
-- **Finding a chart**: the **Chart library** (File → Chart library, the logo, or Ctrl+K, which
+- **Title bar and menus** across the top, kept to what isn't a click away elsewhere: *File* (new
+  chart, open a chart, add a shared chart, close the tab), *Chart* (on a chart: edit its details,
+  returns, the client sheet), *Tools* (Ephemeris, Settings, and Users for the owner), **My View**
+  (which goes straight to its page) and *Help* (keyboard shortcuts, getting started, about).
+  Settings is in tabs: Defaults, Calculation, ephemeralREST, and for the owner Business, Email,
+  New accounts and Site themes. On the
+  chart screen the Preset, Chart type and Layout pickers sit at the right, with the ☀/☾
+  light/dark switch and your account menu (Account, Log out).
+- **Finding a chart**: the **Chart library** (its tab, always first, the logo, or Ctrl+K, which
   also puts the cursor in its search). Click a chart to open it in its own tab.
 - **Tabs** over the work area. Every chart and screen you open gets a tab, and a tab remembers
   where you were in it (a chart's Returns screen, say). Click a tab to go back to it; × or a
@@ -51,7 +97,8 @@ AstrologyStudio is laid out like a desktop program, and the browser page itself 
   every other tab brings you back to it. Switching chart from a chart's own panel keeps the same
   tab. Your open tabs, in their order, are remembered with your other choices.
 - **Status bar** along the bottom: whether ephemeralREST is answering (checked every five minutes;
-  click the dot to check now), what's open, how many charts you have and the version.
+  click the dot to check now), what's open, how many charts you have and the version. Hide it
+  under My View → Appearance → Status bar.
 - **Phones**: the tabs and a chart's views row scroll sideways, and the status bar is hidden.
 
 | Shortcut | Does |
@@ -89,17 +136,17 @@ AstrologyStudio is laid out like a desktop program, and the browser page itself 
 
 ## The chart screen
 
-A bar of **report tabs** runs across the top of every chart, centred: **Chart**, **Aspects**,
-**Midpoints**, **Hellenistic** and **Events** (each of the last three only when its feature is
-switched on in Your view). The bar sits over the chart only. The panel on the left runs from the
+A bar of **report tabs** runs across the top of every chart, centred: **Chart**, **Overview**,
+**Aspects**, **Midpoints**, **Hellenistic** and **Events** (Overview and the last three only when
+their features are switched on in My View). The bar sits over the chart only. The panel on the left runs from the
 top, beside it, and holds the selected chart's positions and nothing else. Under the bar, on the
 canvas, are the two charts: **chart 1** to the left of the wheel or dial and **chart 2** to the
 right (above it in a row when the window isn't wide enough, and above every report).
 The report tab you're on is remembered, and presets set it too.
 
-The chart type picker in the title bar (or View in the menus) switches the Chart tab between the
+The chart type picker in the title bar switches the Chart tab between the
 **chart wheel**, the **Hellenistic chart** and the **dial** (each only when its feature is switched
-on in Your view). The dial is 90° unless you switch on other sizes under Your view → Charts & dials;
+on in My View). The dial is 90° unless you switch on other sizes under My View → Charts & dials;
 with more than one size on, a second picker beside the chart type chooses the size. The **Layout**
 picker next to them chooses how the chart type is drawn (see *Layouts* below). Drag the panel's
 edge to widen or narrow it; double-click the edge to put it back.
@@ -115,7 +162,7 @@ edge to widen or narrow it; double-click the edge to put it back.
   - **Derived**: transits for a date and time, progressions or solar arc directions to a date, or
     a solar or lunar return, a harmonic chart, or the composite or Davison chart of two charts,
     worked out from one of your charts (chart 1's, unless you choose another). Only the kinds
-    switched on in Your view are offered. ephemeralREST keeps it, and it's listed under its chart
+    switched on in My View are offered. ephemeralREST keeps it, and it's listed under its chart
     from then on, here and in other apps that use your ephemeralREST chart list, such as MindForce.
     Composite and Davison charts are kept under the *From* chart too (and worked out from the two
     charts each time they're shown); removing either of their charts removes them. Harmonic charts
@@ -167,6 +214,28 @@ A chart can be looked at in more than one way in its tab, for example as a Weste
 
 ### The reports
 
+- **Overview**, the first interpretive page: the basics read before anything else, for the selected
+  chart (choose *Chart 1* or *Chart 2* with two charts).
+  - *Elements and modalities*: a table of fire, earth, air and water (the triplicities) against
+    cardinal, fixed and mutable (the quadruplicities), with each planet in its square and the totals.
+    The **chart signature** is the sign where the leading element and modality meet (fixed water is
+    Scorpio); with a tie, each sign is given. Below it, polarity (fire and air against earth and
+    water), strong, weak and missing elements and modalities, and singletons (a planet alone in its
+    element or modality). *Count* chooses what's counted: the ten planets; the planets with the
+    Ascendant and MC; or weighted, with the Sun, Moon and Ascendant counting twice. Planets
+    switched off in My View aren't counted.
+  - *Sun, Moon, Ascendant and chart ruler*: their signs and houses, the chart ruler (traditional and
+    modern, when they differ), the Moon's phase at birth (Rudhyar's eight phases), day or night chart,
+    and the retrograde planets.
+  - *Chart shape*: Marc Edmund Jones's patterns (bundle, bowl, bucket, locomotive, seesaw, splash,
+    splay), with a bowl's or locomotive's leading planet or a bucket's handle.
+  - *Hemispheres and houses*: above and below the horizon, east and west, the four quadrants, and
+    angular, succedent and cadent houses (not for charts without houses).
+  - *Patterns*: grand trines, kites, grand crosses, mystic rectangles, T-squares and yods (found with
+    your aspects and orbs), stelliums of three or more planets in a sign or house, and unaspected
+    planets.
+  - *Dignities and rulerships*: planets in domicile, exaltation, detriment or fall, mutual receptions
+    and the final dispositor. *Rulers* chooses modern or traditional rulerships.
 - **Aspects**: the aspectarian (each square shows the aspect and its orb, with applying (a) or
   separating (s)) and the list of aspects, closest first, side by side, each half the width (one
   above the other when the window is narrow). With two charts, choose *Chart 1*,
@@ -188,7 +257,7 @@ A chart can be looked at in more than one way in its tab, for example as a Weste
   arc aspect to it over a range of dates, by month. Hovering an event picks out its natal body in
   the positions. Click the symbols to choose which bodies move (*Transiting*, *Progressed* or
   *Solar arc*) and which natal ones they aspect (*To natal*); *All*, *None* and *Usual* are beside
-  each line. Usual is every body switched on in Your view, except that transits leave out the
+  each line. Usual is every body switched on in My View, except that transits leave out the
   Moon, and transits and progressions leave out the angles and lots (solar arc moves those too).
   Your choices are remembered, separately for each kind of event.
 
@@ -222,7 +291,7 @@ chart wheel and its houses and aspects return.
 
 - **Houses** are Whole Sign houses, counted from the Ascendant's sign.
 - **Bodies** are the seven traditional planets, the Ascendant and MC, and the Lots of Fortune and
-  Spirit, with the other lots if they're switched on in Your view. *Modern bodies* (under the chart,
+  Spirit, with the other lots if they're switched on in My View. *Modern bodies* (under the chart,
   or on the Hellenistic tab) adds the outer planets and the other bodies you have switched on.
 - **Aspects are by whole sign**: planets in signs 2, 3, 4 or 6 apart aspect each other whatever
   the degrees, and planets in signs 1 or 5 apart are in aversion. Hover a body to see its aspects;
@@ -290,9 +359,9 @@ solar arc directions or progressions round the natal chart.
 - **Ephemeris** (Tools → Ephemeris): a month of daily positions with ingresses, stations, lunations
   and eclipses.
 
-## Your view and profiles
+## My View and profiles
 
-- **Your view** (View → Your view, or Tools) has five tabs. It only changes what you see.
+- **My View** (in the menu bar) has six tabs. It only changes what you see.
   - **Features**: switch major features on or off, and choose your default school (below).
   - **Appearance**: your theme and display options (see *Appearance* below).
   - **Charts & dials**: dial sizes and layouts.
@@ -306,7 +375,7 @@ solar arc directions or progressions round the natal chart.
     theme's. *Show each aspect's symbol in the middle of its line* puts the aspect's symbol on
     each aspect line of the chart wheel and Hellenistic chart (where the middle is taken, as every
     opposition crosses the centre, it slides along the line).
-- **Default school** (Your view): Self-selected (the first and the default), Modern Western,
+- **Default school** (My View): Self-selected (the first and the default), Modern Western,
   Hellenistic or Cosmobiology. Choosing a school doesn't switch anything on or off by itself.
   - **Self-selected** is tied to no school: you mix and match techniques from all of them. New
     accounts start with the most common techniques switched on (transits, progressions, solar arc,
@@ -332,7 +401,7 @@ solar arc directions or progressions round the natal chart.
 - **Sidereal zodiac**: the choice and the ayanamsa are saved, but positions stay tropical until
   ephemeralREST supports ayanamsas. The chart says so when this applies.
 
-Your view, your themes, layouts and presets, your profiles and everything the screens remember (light or dark, chart type, layout,
+My View, your themes, layouts and presets, your profiles and everything the screens remember (light or dark, chart type, layout,
 background shade, panel width, which charts are on the wheel) belong to your account, so they're
 the same on any computer you log in from. The ephemeralREST address and whether new people can
 create accounts are the owner's settings and apply to everyone, as are the shared themes and the
@@ -348,7 +417,7 @@ highlights. It doesn't change the app window (title bar, panels, menus, forms): 
 the title bar still switches that between light and dark. Every theme has a light and a dark
 version, and the same button picks which one you see.
 
-Your view → Appearance shows each theme on a sample chart. Click one, or *Use*, to switch to it.
+My View → Appearance shows each theme on a sample chart. Click one, or *Use*, to switch to it.
 
 - **Built-in themes**: Studio (the standard look), Classic (bright element colours), Monochrome
   (for printing), High contrast and Parchment. They can't be changed, but you can copy them.
@@ -384,7 +453,7 @@ On the dial, the focused body is drawn in the pointer axis colour, as in MindFor
 
 ### Display options
 
-Under the themes in Your view → Appearance:
+Under the themes in My View → Appearance:
 
 - **Symbols**: astrological symbols, or two-letter abbreviations.
 - **Text size**: 90%, 100%, 115% or 130% for the whole app, charts included.
@@ -400,7 +469,7 @@ Under the themes in Your view → Appearance:
 ### Layouts
 
 A layout is what a chart type draws. Each chart type (chart wheel, Hellenistic chart and dial) has
-its own layouts, chosen from the **Layout** picker on the chart screen or under Your view →
+its own layouts, chosen from the **Layout** picker on the chart screen or under My View →
 Charts & dials.
 
 - **Built-in**:
@@ -430,7 +499,7 @@ dial with transits now. Use the **Preset** picker at the right of the title bar 
     and chart 2 too unless the preset has none.
   - **Several views**: the chart gets the preset's views, in the same tab. If the chart already has
     several views, it asks the first time whether to **replace** them or **add** the preset's after
-    them. Tick *Remember my choice* to stop it asking. Change the choice later in Your view →
+    them. Tick *Remember my choice* to stop it asking. Change the choice later in My View →
     Presets.
   - The theme and calculation profile switch too, and charts are recalculated if the profile is
     different. Dial sizes the preset uses are switched on if they were off.
@@ -454,7 +523,7 @@ dial with transits now. Use the **Preset** picker at the right of the title bar 
 - **Default preset**: charts that have no views yet open with it. For example, every chart you
   open shows Western, Dial and Transits now. Charts you've already looked at keep their views.
 - **From ＋ View**: *From a preset* adds a preset's views after the chart's own.
-- **Your view → Presets** lists every preset with its views. There you can:
+- **My View → Presets** lists every preset with its views. There you can:
   - **Edit** a preset: its name, theme (or keep the theme in use), calculation profile (or keep the
     profile in use), and each view's name, chart type, dial size, layout, report tab, chart 2 and
     *Between 1 and 2*. Views can be added (up to six), removed and moved up or down.
@@ -472,21 +541,33 @@ for that part and says so.
 
 ### Dial sizes
 
-Under Your view → Charts & dials, switch on any of 360°, 180°, 120°, 90°, 45°, 30°, 22.5° and
+Under My View → Charts & dials, switch on any of 360°, 180°, 120°, 90°, 45°, 30°, 22.5° and
 11.25°, or add another size. A size must divide the circle evenly (72°, 60°, 40°, 36°, 24° and so
 on), down to 5.625°. The scale adapts to the size: 1° marks on the 90° dial, ¼° marks numbered
 every degree on the 22.5° dial, and so on. On dials under 60° the band is tinted in thirds.
 
 ## Printing and saving
 
-Under each wheel and dial: **PNG**, **SVG**, and **Client sheet**, a one-page sheet with the wheel,
-positions and aspect grid. Use *Print or save as PDF* on the sheet. The sheet is printed in
+Under each wheel and dial: **PNG**, **SVG**, and **Client sheet**, a one-page sheet (now with the
+elements and modalities table, the chart signature and polarity, counted as on the Overview tab) with a large
+wheel, the positions (with houses), the house cusps and the aspectarian. The sheet is laid out to
+fit one portrait page of A4 or US Letter, whichever your printer uses; with more bodies
+switched on, the aspectarian's squares and then the wheel get a little smaller so it still fits. When
+there are too many for that (the wheel would get small), it goes onto two pages: the wheel across
+the full width of page 1 with the business box, and the aspectarian and tables on page 2. Use *Print or save as PDF* on the sheet. The sheet is printed in
 Monochrome unless you choose your own theme's light version with *Colours* at the top. Saved PNG
-and SVG files use the background chosen under Your view → Appearance.
+and SVG files use the background chosen under My View → Appearance.
+
+A saved PNG or SVG has the chart details across the top: chart 1's name, date, time and place on
+the left and, when there is a chart 2, its details on the right (synastry and returns with the
+natal chart work the same way). The owner's logo, if there is one, sits in the bottom right, and
+the client sheet shows it, with the business details, in a box at the bottom right (without either,
+the sheet shows the AstrologyStudio name at the top). Saved SVGs use
+plain colours, so they look the same in Inkscape, Illustrator and other drawing programs.
 
 ## Your account
 
-Your account menu (your initial and name, top right) → Account, or File → Account:
+Your account menu (your initial and name, top right) → Account:
 
 - **Your data**: *Download my data* saves one JSON file with everything AstrologyStudio keeps for
   you: your chart list (birth details, and what each derived chart was worked out from), notes,
@@ -502,7 +583,7 @@ Your account menu (your initial and name, top right) → Account, or File → Ac
 
 AstrologyStudio works at phone width. The title bar puts the preset, chart type and layout pickers on
 a row of their own. On the chart screen the report tabs come first (symbols only, apart from the one in use), then
-the two chart cards side by side, the chart or report, and the positions panel below that. Your view and the theme and layout editors
+the two chart cards side by side, the chart or report, and the positions panel below that. My View and the theme and layout editors
 stack their parts in one column.
 
 ## Running the install

@@ -61,7 +61,7 @@ HEX_COLOUR = re.compile(r"^#[0-9a-fA-F]{6}$")
 
 
 def aspect_colours(conn: sqlite3.Connection, user_id: str) -> dict[str, str]:
-    """Your own colour for an aspect (Your view → Aspects), over whichever theme is in use.
+    """Your own colour for an aspect (My View → Aspects), over whichever theme is in use.
     Aspects without one take the theme's colour."""
     stored = get(conn, user_id, "aspect_colours")
     if not isinstance(stored, dict):

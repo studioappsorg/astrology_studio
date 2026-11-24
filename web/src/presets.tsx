@@ -233,7 +233,7 @@ function ApplyModeModal({ preset, count, onChoose, onClose }: {
         <p>This chart already has {count} views. Use the preset's {preset.views.length} views ({describeViews(preset)}) instead of them, or add them after?</p>
         <label class="check">
           <input type="checkbox" checked={remember} onChange={(e) => setRemember(e.currentTarget.checked)} />
-          <span>Remember my choice <small class="muted">(change it in Your view → Presets)</small></span>
+          <span>Remember my choice <small class="muted">(change it in My View → Presets)</small></span>
         </label>
       </ModalBody>
       <ModalFooter>

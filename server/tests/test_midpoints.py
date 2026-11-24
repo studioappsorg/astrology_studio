@@ -62,7 +62,7 @@ def test_endpoint(client: TestClient, ready: dict[str, str]) -> None:
     assert body["modulus"] == 90
     assert body["tree"]["factor"] == "sun"
     assert "search" in body
-    assert "true_node" not in body["points"]  # off in Your view by default
+    assert "true_node" not in body["points"]  # off in My View by default
     only = client.get(url, params={"bodies": "sun,moon,mars"}).json()
     assert len(only["sort"]) == 6
     assert client.get(url, params={"modulus": 45}).json()["modulus"] == 45

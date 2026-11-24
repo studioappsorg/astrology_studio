@@ -87,10 +87,10 @@ export function ThemeEditor({ id }: { id: string }) {
   const [open, setOpen] = useState<Set<string>>(new Set(['canvas', 'chart']));
 
   if (!saved || !draft) {
-    return <EmptyState title="Theme not found">Only your own themes can be edited. <a href="/view">Back to Your view</a></EmptyState>;
+    return <EmptyState title="Theme not found">Only your own themes can be edited. <a href="/view">Back to My View</a></EmptyState>;
   }
   if (saved.kind !== 'own') {
-    return <EmptyState title="Built-in and shared themes can't be changed">Duplicate it in Your view → Appearance, then edit the copy.</EmptyState>;
+    return <EmptyState title="Built-in and shared themes can't be changed">Duplicate it in My View → Appearance, then edit the copy.</EmptyState>;
   }
   const base = view.themes.find((t) => t.id === draft.base && t.kind === 'builtin');
   const colours = draft[mode];

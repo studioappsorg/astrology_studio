@@ -2,7 +2,7 @@
  * AstrologyStudio ·
  * web/src/sample.ts
  *
- * A made-up chart for previews in Your view (theme and layout editors and the theme gallery),
+ * A made-up chart for previews in My View (theme and layout editors and the theme gallery),
  * so they can be shown before any chart is opened and look the same for everyone.
  *
  * Copyright (c) 2026 Gavin Melhuish

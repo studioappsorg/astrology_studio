@@ -84,7 +84,7 @@ export interface ViewTemplate {
   display: DisplayKey;
   dial_size: number | null;
   layout: string | null;
-  report: 'chart' | 'aspects' | 'midpoints' | 'hellenistic' | 'events';
+  report: 'chart' | 'overview' | 'aspects' | 'midpoints' | 'hellenistic' | 'events';
   between: boolean;
   partner: PartnerRole;
 }
@@ -299,7 +299,7 @@ export interface ChartStyle {
   signs: SignMode;
   bodies: BodyMode;
   dashes: Record<string, Dash>;
-  /** Symbols' size, from Your view (small, medium or large). A layout can enlarge them further. */
+  /** Symbols' size, from My View (small, medium or large). A layout can enlarge them further. */
   glyphScale: number;
 }
 

@@ -4,7 +4,8 @@
  *
  * Desktop-style menus:
  *
- * a row of names (File, View, ...) that drop down lists of commands. Click a name to open it;
+ * a row of names (File, Chart, ...) that drop down lists of commands, or (like My View) go
+ * straight to a page. Click a name to open it;
  * while one is open, pointing at another opens that one instead. Arrow keys move through the
  * commands and across the menus, Enter runs one, Escape closes.
  *
@@ -36,6 +37,10 @@ export interface Menu {
   disabled?: boolean;
   /** Line the list up with the button's right edge (for menus at the right of the bar). */
   alignEnd?: boolean;
+  /** A name that does something itself (opens a page) rather than dropping down a list. */
+  run?: () => void;
+  /** For a `run` name: it's the page you're on. */
+  current?: boolean;
 }
 
 const isCommand = (item: MenuItem): item is Exclude<MenuItem, { separator: true }> => !('separator' in item);
@@ -48,9 +53,18 @@ export function Menus({ menus, label, class: cls = '' }: { menus: Menu[]; label:
     if (open === null) return;
     const away = (e: MouseEvent) => { if (!bar.current?.contains(e.target as Node)) setOpen(null); };
     const blur = () => setOpen(null);
+    // Escape closes a menu opened with the mouse too (focus isn't in the menu bar then).
+    const escape = (e: KeyboardEvent) => {
+      if (e.key === 'Escape' && !bar.current?.contains(document.activeElement)) setOpen(null);
+    };
     document.addEventListener('mousedown', away);
+    document.addEventListener('keydown', escape);
     window.addEventListener('blur', blur);
-    return () => { document.removeEventListener('mousedown', away); window.removeEventListener('blur', blur); };
+    return () => {
+      document.removeEventListener('mousedown', away);
+      document.removeEventListener('keydown', escape);
+      window.removeEventListener('blur', blur);
+    };
   }, [open]);
 
   // Opening a menu from the keyboard puts focus on its first command.
@@ -64,7 +78,8 @@ export function Menus({ menus, label, class: cls = '' }: { menus: Menu[]; label:
       items[to]!.focus();
     });
   };
-  const enabled = menus.map((m, i) => (m.disabled ? -1 : i)).filter((i) => i >= 0);
+  // Arrow keys move across the menus that drop down (not the ones that go straight to a page).
+  const enabled = menus.map((m, i) => (m.disabled || m.run ? -1 : i)).filter((i) => i >= 0);
   const step = (from: number, by: 1 | -1) => {
     const at = enabled.indexOf(from);
     return enabled[(at + by + enabled.length) % enabled.length]!;
@@ -90,7 +105,16 @@ export function Menus({ menus, label, class: cls = '' }: { menus: Menu[]; label:
 
   return (
     <div class={`menus ${cls}`} role="menubar" aria-label={label} ref={bar} onKeyDown={onKey}>
-      {menus.map((menu, i) => (
+      {menus.map((menu, i) => menu.run ? (
+        <div key={menu.label} class="menu" data-menu={i}>
+          <button type="button" class={`menu__trigger menu__trigger--direct${menu.current ? ' is-current' : ''}`}
+                  role="menuitem" aria-current={menu.current ? 'page' : undefined} disabled={menu.disabled}
+                  onMouseEnter={() => { if (open !== null) setOpen(null); }}
+                  onClick={() => { setOpen(null); menu.run!(); }}>
+            {menu.face ?? menu.label}
+          </button>
+        </div>
+      ) : (
         <div key={menu.label} class={`menu${open === i ? ' is-open' : ''}`} data-menu={i}>
           <button type="button" class="menu__trigger" aria-haspopup="menu" aria-expanded={open === i}
                   disabled={menu.disabled} aria-label={menu.face ? menu.label : undefined}

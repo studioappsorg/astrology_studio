@@ -2,7 +2,7 @@
  * AstrologyStudio ·
  * web/src/view.tsx
  *
- * "Your view":
+ * "My View":
  *
  * which major features and which bodies each person wants to see. Loaded once when the app starts;
  * every screen reads it from here, and a change made in Settings updates every screen straight
@@ -43,7 +43,7 @@ export function ViewProvider({ children }: { children: ComponentChildren }) {
 
   const display: Display = { school: 'self', ...(switches.display ?? { glyphs: 'symbols', colours: 'studio' }) };
   setGlyphStyle(display.glyphs);
-  // Your aspect colours (Your view → Aspects) over the theme's, in light and dark alike.
+  // Your aspect colours (My View → Aspects) over the theme's, in light and dark alike.
   useLayoutEffect(() => applyAspectColours(switches.aspect_colours ?? {}), [JSON.stringify(switches.aspect_colours ?? {})]);
 
   const update = useCallback(async (changes: Partial<ViewSwitches> & { reset?: boolean }) => {

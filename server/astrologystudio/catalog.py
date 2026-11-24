@@ -6,7 +6,7 @@ The things a person can switch on or off:
 
 major features, and bodies and points.
 
-The web app builds its "Your view" screens from these lists, so adding an entry
+The web app builds its "My View" screens from these lists, so adding an entry
 here is all it takes to make something switchable.
 
 Copyright (c) 2026 Gavin Melhuish
@@ -19,6 +19,7 @@ from __future__ import annotations
 from typing import Any, Final
 
 FEATURES: Final[dict[str, str]] = {
+    "overview": "Chart overview",
     "transits": "Transits",
     "progressions": "Secondary progressions",
     "solar_arc": "Solar arc directions",
@@ -37,6 +38,7 @@ FEATURES: Final[dict[str, str]] = {
 """Major features. Natal charts are always on."""
 
 COMMON_FEATURES: Final = (
+    "overview",
     "transits",
     "progressions",
     "solar_arc",
@@ -158,6 +160,7 @@ SCHOOLS: Final[dict[str, dict[str, Any]]] = {
     "modern": {
         "label": "Modern Western",
         "features": [
+            "overview",
             "transits",
             "progressions",
             "solar_arc",
@@ -171,7 +174,7 @@ SCHOOLS: Final[dict[str, dict[str, Any]]] = {
     },
     "hellenistic": {
         "label": "Hellenistic",
-        "features": ["hellenistic", "transits", "returns", "synastry", "time_tools", "ephemeris"],
+        "features": ["overview", "hellenistic", "transits", "returns", "synastry", "time_tools", "ephemeris"],
         "bodies": [*_PLANETS, "asc", "mc", "part_of_fortune", "lot_spirit"],
     },
     "cosmobiology": {

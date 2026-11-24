@@ -21,7 +21,7 @@ import { Wheel } from '../components/Wheel';
 import { oneOf, usePref } from '../prefs';
 import { Loading, useLoad } from '../ui';
 import { useView } from '../view';
-import { AspectList, birthLine, EmptyWorkspace, SimpleChart, useGlyphs, useShownKeys } from './ChartView';
+import { AspectList, birthLine, dataLine, EmptyWorkspace, SimpleChart, useGlyphs, useShownKeys } from './ChartView';
 
 type Mode = 'synastry' | 'composite' | 'davison';
 const MODES: Array<[Mode, string]> = [['synastry', 'Synastry'], ['composite', 'Composite'], ['davison', 'Davison']];
@@ -97,7 +97,8 @@ function SynastryView({ id, other, top }: { id: string; other: string; top: prea
           } stageFooter={
             <div class="wheel-actions">
               <span class="muted small">Inside: {a.name}. <span class="layer-key layer-key--1" />Outside: {b.name}.</span>
-              <ExportButtons target={box} name={`${a.name} and ${b.name}`} />
+              <ExportButtons target={box} name={`${a.name} and ${b.name}`}
+                             charts={[{ name: a.name, line: dataLine(a) }, { name: b.name, line: dataLine(b) }]} />
             </div>
           }>
             <div class="stage-chart" ref={box}>

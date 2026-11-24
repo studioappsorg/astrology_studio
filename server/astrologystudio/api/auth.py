@@ -14,12 +14,13 @@ SPDX-License-Identifier: MIT
 from __future__ import annotations
 
 import json
+import logging
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Cookie, Request, Response
 from pydantic import EmailStr, Field
 
-from .. import accounts
+from .. import accounts, mail
 from ..config import Settings
 from ..db import now, transaction
 from ..deps import Db, OwnerPrincipal, UserPrincipal, transport
@@ -27,6 +28,8 @@ from ..ephemeral import Ephemeral, configured_url
 from ..errors import ProblemError
 from ..schemas import Strict, normalise_email
 from .account import store_key
+
+log = logging.getLogger("astrologystudio")
 
 router = APIRouter(prefix="/auth", tags=["Login"])
 Password = Annotated[str, Field(min_length=1, max_length=200)]
@@ -93,6 +96,8 @@ def status(conn: Db, request: Request, as_session: SessionCookie = None) -> dict
         "setup_required": accounts.user_count(conn) == 0,
         "registration_open": accounts.registration_open(conn),
         "hosted": request.app.state.settings.hosted,
+        # "Forgot your password?" works only when the owner has set up email.
+        "password_reset": mail.configured(conn),
         "user": _me(conn, session.user_id, session.csrf_token) if session else None,
     }
 
@@ -325,3 +330,103 @@ def change_password(
             (accounts.hash_password(body.new_password), person.id),
         )
         accounts.end_other_sessions(conn, person.id, as_session)
+
+
+# ---------------------------------------------------------------------------
+# Forgot your password?
+
+
+ASK_AGAIN = "Ask for a new one from the login page."
+
+
+class ResetRequest(Strict):
+    email: EmailStr
+
+
+class ResetFinish(Strict):
+    token: Annotated[str, Field(min_length=20, max_length=200)]
+    new_password: Annotated[str, Field(max_length=200)]
+
+
+@router.post("/password-reset", status_code=202, summary="Email a link to set a new password")
+def request_reset(body: ResetRequest, request: Request, conn: Db) -> dict[str, Any]:
+    """Public. Always answers the same way, whether or not there's an account for the address,
+    so it can't be used to find out who has one. Accounts that sign in through ephemeralREST
+    reset their password there, so they get an email saying so instead of a link."""
+    settings: Settings = request.app.state.settings
+    if not mail.configured(conn):
+        raise ProblemError(
+            409,
+            "email-not-set-up",
+            "Password resets need email",
+            "Ask the owner to set up email in Settings, or to give you a new password from the server.",
+        )
+    email = normalise_email(str(body.email))
+    row = conn.execute("SELECT id, name, signs_in_with FROM users WHERE email = ?", (email,)).fetchone()
+    if row is not None:
+        try:
+            if row["signs_in_with"] == "ephemeral":
+                with transaction(conn):
+                    allowed = accounts.start_reset(conn, row["id"]) is not None
+                if allowed:
+                    mail.send(
+                        conn,
+                        settings,
+                        email,
+                        "AstrologyStudio: your password",
+                        f"Hello {row['name']},\n\nSomeone (probably you) asked to reset the password for "
+                        f"{email} at {settings.base_url}.\n\nYour account signs in through ephemeralREST, "
+                        "so its password is changed there, not here.\n\nIf this wasn't you, ignore this "
+                        "message.\n",
+                    )
+            else:
+                with transaction(conn):
+                    token = accounts.start_reset(conn, row["id"])
+                if token:
+                    link = f"{settings.base_url}/reset-password?token={token}"
+                    mail.send(
+                        conn,
+                        settings,
+                        email,
+                        "AstrologyStudio: set a new password",
+                        f"Hello {row['name']},\n\nSomeone (probably you) asked to reset the password for "
+                        f"{email} at {settings.base_url}.\n\nTo choose a new one, open this link within "
+                        f"the hour:\n\n{link}\n\nIt works once. If this wasn't you, ignore this message: "
+                        "your password stays as it is.\n",
+                    )
+        except ProblemError:
+            # Not telling the person asking: that would show the account exists. The owner sees
+            # sending problems when they send a test message.
+            log.warning("A password reset email couldn't be sent", exc_info=True)
+    return {"sent": True}
+
+
+@router.get("/password-reset/{token}", summary="Check a reset link before choosing a password")
+def check_reset(token: str, conn: Db) -> dict[str, Any]:
+    row = accounts.reset_user(conn, token)
+    if row is None:
+        raise ProblemError(
+            410,
+            "reset-expired",
+            "This link has expired or been used",
+            "Ask for a new one from the login page.",
+        )
+    return {"email": row["email"]}
+
+
+@router.post("/password-reset/finish", status_code=204, summary="Set a new password from a reset link")
+def finish_reset(body: ResetFinish, conn: Db) -> None:
+    """Logs the account out everywhere; log in again with the new password."""
+    row = accounts.reset_user(conn, body.token)
+    if row is None:
+        raise ProblemError(
+            410,
+            "reset-expired",
+            "This link has expired or been used",
+            "Ask for a new one from the login page.",
+        )
+    problem = accounts.password_problem(body.new_password, row["email"])
+    if problem:
+        raise ProblemError(422, "weak-password", "Choose a stronger password", problem)
+    with transaction(conn):
+        accounts.finish_reset(conn, body.token, row["id"], body.new_password)

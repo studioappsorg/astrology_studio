@@ -103,11 +103,11 @@ views, ticked, so any can be left out. For each view with a chart 2 you choose:
 
 *Open new charts with this preset* makes it the default (see 6.3).
 
-### 3.6 Presets in Your view
+### 3.6 Presets in My View
 
-![Presets in Your view](screens/7-presets-in-your-view.png)
+![Presets in My View](screens/7-presets-in-your-view.png)
 
-Presets move from Charts & dials to their own **Presets** tab in Your view. Each preset shows its
+Presets move from Charts & dials to their own **Presets** tab in My View. Each preset shows its
 views as chips. You can edit (a view's chart type, dial size, layout, report tab and chart 2 role,
 plus the preset's theme and profile), duplicate, delete, reorder and set the default.
 
@@ -123,7 +123,7 @@ plus the preset's theme and profile), duplicate, delete, reorder and set the def
 What stays global, as now:
 - theme (a preset may still switch it, as today)
 - calculation profile (a preset may still switch it, as today)
-- Your view: features, bodies, aspects and their colours, line symbols, leader lines
+- My View: features, bodies, aspects and their colours, line symbols, leader lines
 - text size, formats, and light/dark
 
 **Calculation profile per view is left out.** It's the most server work for the rarest need. It's
@@ -214,7 +214,7 @@ derived chart reuse the Derived dialog's calculations, so no new calculations ar
 
 ### 6.3 Default preset
 - None at first: charts open with one view, as now.
-- Set from the save dialog or Your view → Presets.
+- Set from the save dialog or My View → Presets.
 
 ### 6.4 Things that keep working as they are
 - One tab per chart, the chart cards on the canvas, the report tabs, Ctrl+K and the chart library.
@@ -261,7 +261,7 @@ Each iteration ships on its own, with browser and server tests, changelog and us
   - saving and applying round-trips
   - old presets still apply
 
-### 1.13 — Presets tab in Your view
+### 1.13 — Presets tab in My View
 - A Presets tab replaces the presets list in Charts & dials. Edit a preset's views (chart type,
   dial size, layout, report, chart 2 role), theme and profile. Duplicate, delete, reorder, set the
   default.
@@ -284,7 +284,7 @@ Settled with the design. Each one can still be changed before its iteration star
 
 | # | Question | Decision |
 |---|---|---|
-| 1 | Applying a multi-view preset to a chart whose views you've changed | **Ask the first time** (*Replace these views* / *Add after them*), with *Remember my choice*. Change it later in Your view → Presets. A chart that still has only its untouched default view is simply replaced, without asking. |
+| 1 | Applying a multi-view preset to a chart whose views you've changed | **Ask the first time** (*Replace these views* / *Add after them*), with *Remember my choice*. Change it later in My View → Presets. A chart that still has only its untouched default view is simply replaced, without asking. |
 | 2 | Default preset for new charts | **In 1.12.** Off until you set one. |
 | 3 | The "fixed" chart 2 role | **In v1** (1.12). It costs little, since a fixed chart is just a saved chart reference, and it covers comparing with one chart, e.g. a mundane or event chart. |
 | 4 | Limits | **6 views per chart, 6 views per preset, 30 presets** (as now). The 300 most recently used charts keep their views. |
@@ -296,5 +296,5 @@ Settled with the design. Each one can still be changed before its iteration star
 - **1.12** Presets as sets of views. As designed, with every chart 2 role including *fixed*. The
   lunar return role uses the current month's return. A preset keeps the theme and profile in use
   when it's saved, as before.
-- **1.13** Presets tab in Your view, with the default preset and the replace-or-add choice. The phone
+- **1.13** Presets tab in My View, with the default preset and the replace-or-add choice. The phone
   layout's views row scrolls sideways.

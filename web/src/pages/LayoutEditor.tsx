@@ -52,7 +52,7 @@ export function LayoutEditor({ id }: { id: string }) {
   const [error, setError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
   if (!saved || saved.kind !== 'own') {
-    return <EmptyState title="Layout not found">Only your own layouts can be edited. Duplicate one in Your view → Charts & dials.</EmptyState>;
+    return <EmptyState title="Layout not found">Only your own layouts can be edited. Duplicate one in My View → Charts & dials.</EmptyState>;
   }
   const kind = saved.display === 'dial' ? 'dial' : 'wheel';
   const choices = catalog?.options[saved.display] ?? {};

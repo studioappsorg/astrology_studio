@@ -2,7 +2,7 @@
  * AstrologyStudio ·
  * web/src/pages/PresetsTab.tsx
  *
- * Your view → Presets (1.13): every preset, with its views. Edit a preset's name, theme, profile
+ * My View → Presets (1.13): every preset, with its views. Edit a preset's name, theme, profile
  * and views (chart type, dial size, layout, report tab, Between and what chart 2 is); add, remove
  * and reorder its views; duplicate, delete and reorder presets; choose the default for new charts
  * and what happens when a preset with several views meets a chart with several.
@@ -24,7 +24,7 @@ import { MAX_VIEWS } from '../views';
 
 const DISPLAYS: Array<[DisplayKey, string, string | null]> = [['wheel', 'Chart wheel', null], ['hellenistic', 'Hellenistic chart', 'hellenistic'], ['dial', 'Dial', 'dials']];
 const REPORTS: Array<[ViewTemplate['report'], string, string | null]> = [
-  ['chart', 'Chart', null], ['aspects', 'Aspects', null], ['midpoints', 'Midpoints', 'midpoints'],
+  ['chart', 'Chart', null], ['overview', 'Overview', 'overview'], ['aspects', 'Aspects', null], ['midpoints', 'Midpoints', 'midpoints'],
   ['hellenistic', 'Hellenistic', 'hellenistic'], ['events', 'Events', 'time_tools'],
 ];
 const ROLES: Array<[PartnerRoleKey, string, string | null]> = [

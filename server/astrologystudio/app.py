@@ -23,8 +23,10 @@ from .api import (
     account,
     appearance,
     auth,
+    branding,
     charts,
     connection,
+    email,
     ephemeris,
     folders,
     places,
@@ -38,7 +40,9 @@ from .db import migrate
 log = logging.getLogger("astrologystudio")
 
 ROUTERS = (
-    system, auth, users, connection, account, preferences, appearance, places, folders, charts, ephemeris,
+    system, auth, users, connection, email, branding, account, preferences, appearance, places, folders,
+    charts,
+    ephemeris,
 )  # fmt: skip
 
 

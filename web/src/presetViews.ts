@@ -42,7 +42,7 @@ export async function viewsFromPreset(preset: Preset, parent: string, feature: (
   for (const t of preset.views) {
     let display = t.display;
     if ((display === 'dial' && !feature('dials')) || (display === 'hellenistic' && !feature('hellenistic'))) {
-      missing.add(`the ${display === 'dial' ? 'dial' : 'Hellenistic chart'} is switched off in Your view, so the chart wheel is used`);
+      missing.add(`the ${display === 'dial' ? 'dial' : 'Hellenistic chart'} is switched off in My View, so the chart wheel is used`);
       display = 'wheel';
     }
     const layout = t.layout && layouts.some((l) => l.id === t.layout && l.display === display) ? t.layout : null;

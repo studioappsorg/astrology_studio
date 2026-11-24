@@ -177,7 +177,7 @@ def test_hellenistic_chart(client: TestClient, ready: dict[str, str]) -> None:
 
 
 def test_switched_off_aspects_are_not_shown(client: TestClient, ready: dict[str, str]) -> None:
-    """An aspect switched off in the profile (Your view → Aspects) is in neither the standard nor
+    """An aspect switched off in the profile (My View → Aspects) is in neither the standard nor
     the Hellenistic chart's aspects, though by sign ignores orbs."""
     chart = make(client, ready)
     off = {k: {"on": False} for k in ("square", "trine", "sextile", "opposition", "conjunction")}

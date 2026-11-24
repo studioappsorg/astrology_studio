@@ -49,7 +49,7 @@ export function EventsPane({ chartId, glyphs, onFocus }: {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const label = (k: string) => catalog.bodies.find((b) => b.key === k)?.label ?? k;
-  // The bodies on offer: the ones switched on in Your view. Transits and progressions move only
+  // The bodies on offer: the ones switched on in My View. Transits and progressions move only
   // real bodies; solar arc moves everything, angles and lots included.
   const shown = catalog.bodies.filter((b) => body(b.key) && b.key !== 'earth');
   const movable = layer === 'solar_arc' ? shown : shown.filter((b) => !FIXED_GROUPS.has(b.group) && b.key !== 'aries_point');
@@ -147,7 +147,7 @@ export function EventsPane({ chartId, glyphs, onFocus }: {
 
 /**
  * A line of body symbols to switch on and off, with All, None and Usual. Changing it stores the
- * full list chosen; Usual goes back to the default (and follows Your view from then on).
+ * full list chosen; Usual goes back to the default (and follows My View from then on).
  */
 function BodyPicker({ title, bodies, chosen, usual, glyphs, onChange }: {
   title: string; bodies: BodyInfo[]; chosen: string[]; usual: string[]; glyphs: Record<string, string>;

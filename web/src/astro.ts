@@ -16,7 +16,7 @@ export const SIGNS = ['Aries', 'Taurus', 'Gemini', 'Cancer', 'Leo', 'Virgo', 'Li
 /** Each glyph carries U+FE0E so it draws as text, not as a coloured emoji. */
 const SIGN_SYMBOLS = ['♈', '♉', '♊', '♋', '♌', '♍', '♎', '♏', '♐', '♑', '♒', '♓'].map((g) => `${g}\uFE0E`);
 const SIGN_LETTERS = ['Ar', 'Ta', 'Ge', 'Cn', 'Le', 'Vi', 'Li', 'Sc', 'Sg', 'Cp', 'Aq', 'Pi'];
-/** The sign marks in use: symbols, or two letters when Your view asks for letters. */
+/** The sign marks in use: symbols, or two letters when My View asks for letters. */
 export const SIGN_GLYPHS = [...SIGN_SYMBOLS];
 
 /** Two-letter marks for bodies and points, for when symbols don't suit. */

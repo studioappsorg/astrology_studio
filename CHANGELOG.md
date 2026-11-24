@@ -1,5 +1,161 @@
 # Changelog
 
+## 1.21.3
+
+### Settings in tabs
+
+- Settings now shows one section at a time under tabs, in a single tidy column, instead of a grid
+  of cards of different heights: **Defaults**, **Calculation**, **ephemeralREST**, and for the
+  owner **Business**, **Email** (the SMTP server), **New accounts** and **Site themes**.
+- The address names the section (for example `/settings?section=email`), so a reload, a bookmark
+  or a link opens on it.
+
+## 1.21.2
+
+### Two-page client sheet: aligned to the page
+
+- Page 1: the logo and business box sits on the bottom margin, whatever the paper (A4 or Letter),
+  with the wheel at the top.
+- Page 2: the aspectarian's bottom edge lines up with the bottom of the tables beside it.
+
+## 1.21.1
+
+### Client sheet: two pages when there are too many bodies
+
+- When the bodies switched on won't fit one page without making the wheel small (or the page would
+  have to be shrunk to fit), the client sheet goes onto **two pages**: page 1 has the chart wheel
+  across the full width (190 mm) with the logo and business details in a box under it; page 2 has
+  the aspectarian, the positions, the house cusps and the elements and modalities. With the usual
+  bodies it stays on one page as before. A note beside *Print or save as PDF* says when it's two.
+- On page 1 the business box lays out sideways: the logo on the left, the details beside it (in two
+  columns when they're long).
+
+## 1.21.0
+
+### Business details on client sheets
+
+- **Settings → Business details and logo** (owner): a text box for your business or contact
+  details, typed as they should print (up to 1,000 characters), alongside the logo upload.
+- **Client sheets** print the logo and the business details in a box at the bottom right, under the
+  elements and modalities. The logo has moved there from the top corner; with neither set, the
+  sheet shows the AstrologyStudio name at the top as before. The sheet still fits one A4 or Letter page.
+- API: `GET /branding` now returns `details` too; `PUT /branding/details` (owner) sets them. The logo
+  and the details are kept and removed independently.
+
+## 1.20.1
+
+### Client sheet: a larger aspectarian, lined up with the wheel
+
+- The aspectarian now starts at the left edge, in line with the chart wheel, instead of being centred
+  under it.
+- It's a little bigger: with the usual bodies its squares grow from about 6.3 mm to 6.8 mm (the wheel
+  gives up 6 mm, to 126 mm across). Squares are never more than 7.5 mm, and the aspect symbols (at
+  most 11 pt) and orbs (at most 6.5 pt) stop growing there, so a short list of bodies doesn't give
+  oversized type. With many bodies it still shrinks to fit one A4 or Letter page.
+
+## 1.20.0
+
+### Overview: the first interpretive page
+
+- **A new Overview tab**, straight after Chart, for the selected chart:
+  - **Elements and modalities** (triplicities and quadruplicities) in one table, each planet in its
+    square, with totals; the **chart signature** (the sign where the leading element and modality
+    meet, both signs on a tie); polarity; strong, weak and missing elements and modalities; and
+    singletons. Count the ten planets, add the Ascendant and MC, or weight the Sun, Moon and
+    Ascendant double.
+  - **Sun, Moon, Ascendant and chart ruler**, the Moon's phase at birth, day or night chart, and
+    the retrograde planets.
+  - **Chart shape** (Jones's seven patterns), with the leading planet or handle.
+  - **Hemispheres and houses**: above/below, east/west, quadrants, and angular, succedent and
+    cadent houses.
+  - **Patterns**: grand trines, kites, grand crosses, mystic rectangles, T-squares and yods,
+    stelliums by sign and house, and unaspected planets.
+  - **Dignities and rulerships**: dignities and debilities, mutual receptions and the final
+    dispositor, with modern or traditional rulers.
+- It's a feature you can switch off under My View → Features ("Chart overview"); it's on for
+  Self-selected, Modern Western and Hellenistic, and presets can open on it.
+- **Client sheet**: the elements and modalities table, the chart signature and polarity, under
+  the house cusps. It still fits one A4 or Letter page.
+
+## 1.19.1
+
+### Client sheet on one page
+
+- **Fits one portrait page of A4 or US Letter**: the sheet is laid out in millimetres to the space
+  both share (190 × 255 mm inside 10 mm margins), and the print setting no longer forces A4.
+- **A large wheel** (132 mm across) with the positions and houses beside it, and the house cusps in
+  a compact two-column table below them.
+- **A readable aspectarian** under the wheel, in the staircase style with each body's symbol on
+  the diagonal, its squares sized to the number of bodies (up to 8 mm) and larger aspect symbols
+  and orbs. With many bodies on, the squares and then the wheel shrink so it all still fits; as a
+  last resort the sheet scales itself to the page.
+- Browser test: the sheet prints as one page on A4 and on Letter, with the usual bodies and with
+  every body on.
+
+## 1.19.0
+
+### Your logo on saved charts and client sheets
+
+- **Settings → Logo** (owner only): upload a company or owner logo (PNG, JPEG, WebP or SVG, under
+  1 MB; large pictures are scaled down on upload), with a preview, *Replace logo…* and *Remove*.
+- **Saved PNG and SVG pictures** now have the chart details across the top (chart 1 on the left,
+  chart 2 on the right when there is one, for the chart screen, synastry, composite, Davison and
+  returns) and the logo in the bottom right. The picture grows to make room; the chart itself is
+  unchanged.
+- **Client sheets** show the logo in the top corner in place of the AstrologyStudio name.
+- Saved SVGs now use plain colours throughout: mixed colours were written as `color(srgb …)`,
+  which drawing programs such as Inkscape and Illustrator showed as black.
+- API: `GET /branding` (anyone logged in; the logo as a data URL), `PUT` and `DELETE
+  /branding/logo` (owner). The logo is checked to be the image type it says it is and is never
+  served as a file of its own.
+
+## 1.18.0
+
+### Forgot your password?
+
+- **Password resets by email**, once the owner has set up email (Settings → Email). The login
+  page offers *Forgot your password?*; the email has a link to choose a new password, which works
+  once, for an hour, and logs the account out everywhere else. Only a hash of each link is kept.
+- **Private and limited:** the answer is the same whether or not an account exists (even if
+  sending fails), and an account gets at most one reset email a minute.
+- Accounts that sign in through ephemeralREST are emailed that their password is changed there.
+  A reset link opened while logged in goes to Account.
+- API: `POST /auth/password-reset`, `GET /auth/password-reset/{token}`,
+  `POST /auth/password-reset/finish`; `/auth/status` has `password_reset`. Database migration 007
+  adds `password_resets`.
+
+## 1.17.0
+
+### Email through your own SMTP server
+
+- **Settings → Email** (owner only): the SMTP server, security (STARTTLS, SSL/TLS or none), port,
+  username and password, and the From address, From name and Reply-to that everything in the app
+  sends email with. The password is kept encrypted with the install's secret key and never shown
+  again (leave it empty to keep it). *Send test* sends a test message and explains any failure.
+- **One way to send:** `mail.send()` on the server (to, subject, text, optional HTML and
+  attachments) is what every feature that sends email uses, so all of it goes through these
+  settings. Nothing in the app sends email yet besides the test.
+- API (owner only): `GET`, `PUT` and `DELETE /email`, and `POST /email/test`.
+
+## 1.16.0
+
+### Shorter menus, and My View
+
+- **"Your view" is now "My View"**, everywhere in the app and the guide, and it has its own place
+  in the menu bar (before Help), which goes straight to the page.
+- **The menus keep only what isn't a click away elsewhere:**
+  - *File*: New chart, Open chart…, Add a shared chart…, Close tab.
+  - *Chart* (on a chart): Edit details…, Returns, Client sheet.
+  - *Tools*: Ephemeris, Settings, Users (owner).
+  - *Help*: Keyboard shortcuts, Getting started (moved from Tools), About.
+- **Taken off, and where they are:** the View menu's chart types (the title bar's chart-type
+  picker), Dark mode (the ☀/☾ button), Next and Previous tab (the tabs, Alt+] and Alt+[), and
+  Status bar (now *Show the status bar* under My View → Appearance); File's Chart library (its tab,
+  always first), Account and Log out (the account menu, top right); Chart's Chart and With another
+  chart (the chart's tab, the Chart 2 card and ＋ View); and the extra My View entries in Tools and
+  the account menu.
+- Escape now closes a menu opened with the mouse, too.
+
 ## 1.15.10
 
 - **Browser tests wait for the screen to catch up.** `test_app_frame` failed on GitHub because it
@@ -156,12 +312,12 @@
 
 ## 1.13.0
 
-### Presets tab in Your view
+### Presets tab in My View
 
 Design: `docs/design/views-and-presets/`, iteration 1.13. The design (with its sample screens) is now
 in the repo, marked as built.
 
-- **Your view → Presets** (a new tab) replaces the presets list in Charts & dials. Each preset shows
+- **My View → Presets** (a new tab) replaces the presets list in Charts & dials. Each preset shows
   its views as chips, its theme and profile, and *Default for new charts*.
 - **Edit a preset:**
   - name, theme (or keep the theme in use), calculation profile (or keep the profile in use)
@@ -222,7 +378,7 @@ A preset is now the set of views a chart opens with, plus a theme and calculatio
   number of views, and whether each has a chart 2. Switching report tabs doesn't count. *Save
   changes to …* saves the chart's views into the preset, keeping each chart 2's role.
 - **＋ View → From a preset** adds a preset's views after the chart's own.
-- *Manage presets…* in the picker opens Your view.
+- *Manage presets…* in the picker opens My View.
 - Views remember how a chart 2 worked out for now was made, so saving keeps it as "transits now"
   and not that particular moment. Chart 2 names are kept with views for their labels.
 - Tests:
@@ -270,7 +426,7 @@ and a bi-wheel with a partner. Each way is a **view**. Tabs still mean one chart
 - `?view={id}` on a chart's address opens that view. The old `/charts/{id}/dial` and `/events`
   addresses open the chart's view on the dial or the Events tab.
 - **Chart wheel: lines from moved symbols to the graduation are now off by default.** The tick on
-  the graduation still marks each body's exact place. Switch the lines back on in Your view →
+  the graduation still marks each body's exact place. Switch the lines back on in My View →
   Charts & dials → Chart wheel.
 - **Hovering a body shows only its aspects**: the other aspect lines are hidden, not faded.
 - Tests:
@@ -287,9 +443,9 @@ and a bi-wheel with a partner. Each way is a **view**. Tabs still mean one chart
 
 ## 1.10.0
 
-### Aspects in Your view
+### Aspects in My View
 
-- **Your view → Aspects** (a new tab): tick the aspects you use, set their orbs, and give each its
+- **My View → Aspects** (a new tab): tick the aspects you use, set their orbs, and give each its
   own colour.
   - An aspect switched off is not found at all, so it isn't drawn on any chart or listed in any
     report: aspect lines, the aspectarian and aspect list, synastry, events, the client sheet and
@@ -297,13 +453,13 @@ and a bi-wheel with a partner. Each way is a **view**. Tabs still mean one chart
   - *All*, *Major only* and *None* set them all at once.
   - On/off and orbs belong to the active calculation profile (the same settings as Settings →
     Calculation profiles), so presets that change profile change them too.
-  - Colours are kept with Your view, over whichever theme is in use, in light and dark mode
+  - Colours are kept with My View, over whichever theme is in use, in light and dark mode
     alike; *Theme colour* goes back to the theme's. They're used wherever aspects are coloured:
     lines, glyphs, grids, lists and events. *Reset to defaults* clears them.
 - **Aspect symbols on the lines**: each aspect line on the chart wheel and the Hellenistic chart
   carries its aspect's symbol in the middle, on a small disc in the wheel's colour. Where the
   middle is taken (every opposition crosses the centre) the symbol slides along its line to the
-  nearest free place. It dims with its line when you hover a body. Switch it off in Your view →
+  nearest free place. It dims with its line when you hover a body. Switch it off in My View →
   Aspects.
 - API: `PATCH /preferences/view` takes `aspect_colours` (`{"trine": "#22cc55"}`, `null` to go back to
   the theme's); `GET /preferences/view` returns them.
@@ -450,7 +606,7 @@ a website. The browser page never scrolls; each part scrolls on its own.
 - **Delete your account.** Confirmed with your password (or email), optionally taking your charts
   off your chart list. The owner's account can't be deleted this way.
 - **Phones.** The top bar's pickers get their own row; the aspectarian, midpoint trees and timing go
-  under the chart; tables keep their columns; Your view and the editors fit.
+  under the chart; tables keep their columns; My View and the editors fit.
 - **Tests.** Web unit tests (`npm test`) and browser tests of the main paths (`pytest -m e2e`),
   both run by CI.
 - **Fixed:** crowded symbols on wheels and dials drifted anticlockwise; each crowded run is now
@@ -491,7 +647,7 @@ a website. The browser page never scrolls; each part scrolls on its own.
   after choosing a preset marks it *(changed)*, with *Save changes to …* to update it.
 - Presets refer to their layout, theme and profile, so later improvements carry through. A part
   that has been deleted falls back to the default, with a note saying which.
-- Your view → Charts & dials lists presets with what each sets, to use, rename or delete them.
+- My View → Charts & dials lists presets with what each sets, to use, rename or delete them.
 - The chart screen now reloads its charts when the active calculation profile changes (from a
   preset or from Settings).
 - API: `POST /preferences/presets`, `PATCH` and `DELETE /preferences/presets/{id}`; presets are
@@ -524,7 +680,7 @@ a website. The browser page never scrolls; each part scrolls on its own.
   shape, midpoint lines, trees or a one-line-per-midpoint list, and symbol size.
 - **Any dial size that divides 360°**, down to 5.625°: 180°, 45°, 30°, 22.5°, 11.25°, 72° and so
   on, with the scale adapting to the size. The server's midpoint endpoint accepts them too.
-- **Your view** is now four tabs: Features, Appearance, Charts & dials, Bodies & points.
+- **My View** is now four tabs: Features, Appearance, Charts & dials, Bodies & points.
 - **Client sheet** prints in Monochrome, or your theme's light version.
 - API: `GET/PATCH /preferences/appearance`, `GET /preferences/appearance-catalog`,
   `POST /preferences/themes` (copy), `POST /preferences/themes/import`,
@@ -536,7 +692,7 @@ a website. The browser page never scrolls; each part scrolls on its own.
 ### Three schools: Modern Western, Hellenistic, Cosmobiology
 
 - **Chart type picker.** The app bar picker lists Chart wheel, Hellenistic chart and Dial. Dial
-  sizes are chosen in Your view (90° on by default, 120° and 360° off); with more than one on, a
+  sizes are chosen in My View (90° on by default, 120° and 360° off); with more than one on, a
   size picker appears beside it. Anyone already on the 120° or 360° dial keeps that size. The dial
   screen offers the same sizes.
 - **Hellenistic chart.** Draws the chart screen's charts (1–3, saved, new or derived) with Whole
@@ -547,7 +703,7 @@ a website. The browser page never scrolls; each part scrolls on its own.
   profile. Aspect lines show for the body you hover; the aspectarian shows them all. API:
   `?mode=hellenistic` on `GET /charts/{id}` and `GET /charts/derived/{id}`.
 - **Lots.** Fortune, Spirit, Eros, Necessity, Courage, Victory and Nemesis (Paulus Alexandrinus),
-  worked out in AstrologyStudio from the planets and Ascendant, in a new "Lots" group in Your view.
+  worked out in AstrologyStudio from the planets and Ascendant, in a new "Lots" group in My View.
 - **Part of Fortune fix.** ephemeralREST gives the day formula for every chart. Calculation
   profiles now have a Part of Fortune choice: the same formula day and night (the default, as
   before) or reversed at night; the Hellenistic chart always reverses it.
@@ -556,7 +712,7 @@ a website. The browser page never scrolls; each part scrolls on its own.
   or Fortune to level 3, with the loosing of the bond, peak periods angular from Fortune, and a
   360-day (Valens, default) or 365.25-day year, beside the chart with the signs in play marked on
   it. API: `GET /charts/{id}/profections`, `GET /charts/{id}/releasing` (`to_age` or `end`).
-- **Default school** in Your view: Modern Western (default), Hellenistic or Cosmobiology. Everyone
+- **Default school** in My View: Modern Western (default), Hellenistic or Cosmobiology. Everyone
   starts with everything switched on; Hellenistic and Cosmobiology open charts on their chart type
   each visit. "Show only what this school uses" switches off the rest (`POST
   /preferences/limit-to-school`).
@@ -585,7 +741,7 @@ a website. The browser page never scrolls; each part scrolls on its own.
 - **Transits as a derived chart.** The Derived chart tab now offers Transits for a date and time
   (local to the place; the birth place unless you choose another). ephemeralREST has no transits
   endpoint, so they're an ordinary ephemeralREST chart for that moment, listed under the chart
-  they're for like the other derived charts. Derived kinds you've switched off in Your view
+  they're for like the other derived charts. Derived kinds you've switched off in My View
   (transits, progressions, solar arc, returns) aren't offered, and the tab is hidden if all are.
 - **120° and 360° dials in the app bar picker**, beside the 90° dial and the chart wheel.
 - **Dials redrawn in Ebertin's layout, as MindForce draws them.** No sign band: the degrees round
@@ -603,7 +759,7 @@ a website. The browser page never scrolls; each part scrolls on its own.
   midpoint trees. Each factor of the selected chart with the midpoints on its axis and their orbs,
   laid out down the left and around the dial, with symbols sized to the text. Clicking a factor puts the pointer on it. The panel
   shows the midpoint orb and the far-end option when a dial is shown (shared with the dial
-  screen). The trees follow Your view's Midpoints switch and body choices.
+  screen). The trees follow My View's Midpoints switch and body choices.
 
 - **People can create their own accounts from the login page.** The owner switches it on under
   Settings → New accounts (off by default). Registration uses ephemeralREST's own process: the
@@ -691,7 +847,7 @@ The first release. Everything from 0.1 to 0.9, together:
 - **Cosmobiology**: 90°, 120° and 360° dials with pointer and outer ring; midpoint trees, sort and search.
 - **Two charts and returns**: synastry, composite, Davison, solar and lunar returns.
 - **Time tools**: event lists, the ephemeris page, harmonic charts.
-- **Output**: PNG and SVG, a printable client sheet, glyph and colour choices, and Your view.
+- **Output**: PNG and SVG, a printable client sheet, glyph and colour choices, and My View.
 
 Not in 1.0, on purpose: interpretation text, astrocartography, Vedic and Hellenistic techniques,
 Uranian planets, 45° and 22.5° dials, the graphic ephemeris, and importing other programs' files.
@@ -710,7 +866,7 @@ Uranian planets, 45° and 22.5° dials, the graphic ephemeris, and importing oth
 - Save any wheel or dial as a PNG (1600 pixels square) or an SVG, in the colours you see.
 - A one-page client sheet with the wheel, positions with houses and the aspect grid, ready to print or save
   as a PDF from the browser.
-- Your view has its own page: every feature with what it does, bodies and points by group with all/none,
+- My View has its own page: every feature with what it does, bodies and points by group with all/none,
   and a reset to the defaults.
 - Glyphs as symbols or as two-letter abbreviations, for screens and printers without astrological symbols.
 - Three chart colour schemes: Studio (soft), Classic (bright elements) and Monochrome (for printing).
@@ -721,7 +877,7 @@ Uranian planets, 45° and 22.5° dials, the graphic ephemeris, and importing oth
   timed to the minute for transits, grouped by month, with retrograde passes marked.
 - The ephemeris page: a month of daily positions at noon UT, with ingresses, stations, lunations and eclipses.
 - Harmonic charts for any harmonic from 1 to 180, with the usual ones a click away.
-- Ephemeris, Events and Harmonics follow Your view: switch them off and they disappear.
+- Ephemeris, Events and Harmonics follow My View: switch them off and they disappear.
 
 ## 0.6.0
 
@@ -781,5 +937,5 @@ Uranian planets, 45° and 22.5° dials, the graphic ephemeris, and importing oth
 - Owner account on first run; the owner adds other people.
 - The ephemeralREST address is set once for the install and checked before it's saved.
 - Each person saves their own ephemeralREST API key, checked with ephemeralREST and stored encrypted.
-- Your view: switch major features and individual bodies and points on or off.
+- My View: switch major features and individual bodies and points on or off.
 - Light and dark themes in the Studio look.

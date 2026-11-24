@@ -18,7 +18,7 @@ export type DialModulus = number;
 export const MIN_DIAL = 5.625;
 export const isModulus = (v: unknown): v is DialModulus =>
   typeof v === 'number' && v >= MIN_DIAL && v <= 360 && Math.abs(360 / v - Math.round(360 / v)) < 1e-9;
-/** The sizes offered first in Your view. */
+/** The sizes offered first in My View. */
 export const DIAL_MODULI: DialModulus[] = [360, 180, 120, 90, 45, 30, 22.5, 11.25];
 /** How a size is written: 22.5°, 90°. */
 export const sizeLabel = (m: number) => `${Number(m.toFixed(4))}°`;

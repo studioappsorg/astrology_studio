@@ -6,7 +6,7 @@
  *
  * zodiac, houses, one to three rings of bodies, and aspect lines for one ring (the innermost
  * unless `aspectRing` says otherwise), each with its aspect's symbol in the middle unless switched
- * off in Your view → Aspects. Hovering a body shows only its aspects. The Ascendant sits at nine
+ * off in My View → Aspects. Hovering a body shows only its aspects. The Ascendant sits at nine
  * o'clock when there are houses; otherwise 0° Aries does. Colours come from --wheel-* tokens.
  *
  * Copyright (c) 2026 Gavin Melhuish
@@ -332,7 +332,7 @@ function BodyRing({ ring, radius, bandWidth, at, glyphs, tickFrom, focus, onFocu
   const minGap = Math.min(9, (360 / Math.max(keys.length, 1)) * 0.9) * (190 / glyphR);
   const shown = spread(lons, minGap);
   // The tick on the graduation always marks each body's place; the line from a symbol that's been
-  // moved aside back to that tick only when switched on in Your view → Charts & dials.
+  // moved aside back to that tick only when switched on in My View → Charts & dials.
   const [leaders] = useLeaderLines();
   return (
     <g class={outerRing ? `wheel__bodies wheel__bodies--ring-${ringIndex}` : 'wheel__bodies wheel__bodies--ring-0'}>
