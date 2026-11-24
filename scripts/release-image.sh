@@ -3,7 +3,7 @@
 # scripts/release-image.sh
 #
 # Build and push the image by hand to any registry you can push to (for example GitHub's).
-# Releases normally come from the build server instead: see deploy/build-server/README.md.
+# Releases normally come from GitHub Actions instead: push a vX.Y.Z tag (.github/workflows/release.yml).
 #   scripts/release-image.sh 1.0.0 [ghcr.io/OWNER/astrologystudio]
 #
 # Copyright (c) 2026 Gavin Melhuish
@@ -12,7 +12,7 @@
 
 set -euo pipefail
 version=${1:?Usage: scripts/release-image.sh VERSION [IMAGE]}
-image=${2:-ghcr.io/gmelh/astrologystudio}
+image=${2:-ghcr.io/studioappsorg/astrologystudio}
 major=${version%%.*}
 minor=${version%.*}
 cd "$(dirname "$0")/.."

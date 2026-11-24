@@ -4,9 +4,9 @@
 #
 # AstrologyStudio installer:
 #
-# https://getstudioapps.com
+# https://getstudioapps.com · https://github.com/studioappsorg/astrology_studio
 #
-#   curl -fsSL https://get.getstudioapps.com/astrologystudio | sudo bash
+#   curl -fsSL https://astro.getstudioapps.com | sudo bash
 #
 # On a fresh Ubuntu or Debian server, this:
 #   1. installs Docker (if it isn't there),
@@ -33,7 +33,7 @@
 # Plain `sh` (dash on Ubuntu) can't run this script. Say so before it trips over Bash syntax.
 if [ -z "${BASH_VERSION:-}" ]; then
   echo "AstrologyStudio's installer needs bash. Run it like this:" >&2
-  echo "  curl -fsSL https://get.getstudioapps.com/astrologystudio | sudo bash" >&2
+  echo "  curl -fsSL https://astro.getstudioapps.com | sudo bash" >&2
   exit 1
 fi
 
@@ -43,8 +43,10 @@ trap 'printf "\nError: the installer stopped unexpectedly (line %s). Please repo
 
 # Until 1.0 the newest release; from 1.0, the major version (`:1`), so a future 2.0
 # with breaking changes never arrives through `astrologystudio update` by surprise.
-# Built and published by the build server (deploy/build-server); change here if its address changes.
-DEFAULT_IMAGE="registry.getstudioapps.com/astrologystudio:latest"
+# Built and published to GitHub's registry by .github/workflows/release.yml on each vX.Y.Z tag.
+DEFAULT_IMAGE="ghcr.io/studioappsorg/astrologystudio:latest"
+# Installs before 1.21.6 pulled from the build server's registry: moved to GitHub's, same tag.
+OLD_REGISTRY="registry.getstudioapps.com/astrologystudio"
 DEFAULT_DIR="/opt/astrologystudio"
 APP_UID=10001  # the container's astrologystudio user
 
@@ -115,6 +117,7 @@ load_existing() {
   else
     EXISTING=0
   fi
+  case $IMAGE in "$OLD_REGISTRY":*) IMAGE="${DEFAULT_IMAGE%:*}:${IMAGE##*:}" ;; esac
   [ -n "$IMAGE" ] || IMAGE=$DEFAULT_IMAGE
 }
 
@@ -122,7 +125,7 @@ check_system() {
   step "Checking this server"
   [ "$(uname -s)" = "Linux" ] || die "AstrologyStudio installs on Linux servers."
   if [ "$DRY_RUN" -eq 0 ] && [ "$(id -u)" -ne 0 ]; then
-    die "Run it as root: curl -fsSL https://get.getstudioapps.com/astrologystudio | sudo bash"
+    die "Run it as root: curl -fsSL https://astro.getstudioapps.com | sudo bash"
   fi
   case $(uname -m) in
     x86_64|amd64|aarch64|arm64) ;;

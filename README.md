@@ -19,9 +19,11 @@ See the [user guide](docs/user-guide.md) for everything the app does.
 ## Install
 
 ```sh
-curl -fsSL https://get.getstudioapps.com/astrologystudio | sudo bash
+curl -fsSL https://astro.getstudioapps.com | sudo bash
 ```
 
+The code is at [github.com/studioappsorg/astrology_studio](https://github.com/studioappsorg/astrology_studio);
+releases (and the image, `ghcr.io/studioappsorg/astrologystudio`) are published from there.
 Then open the address it gives you, create the owner account, connect ephemeralREST
 and add your API key.
 

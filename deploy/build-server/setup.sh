@@ -7,7 +7,7 @@
 # an Ubuntu server that builds the AstrologyStudio image and keeps it in its own registry, where
 # every install pulls it from.
 #
-#   sudo bash setup.sh --domain registry.getstudioapps.com --git ssh://git@gitzone.net:2222/gmelh/AstrologyStudio.git
+#   sudo bash setup.sh --domain registry.getstudioapps.com --git https://github.com/studioappsorg/astrology_studio.git
 #
 # It:
 #   1. installs Docker and git (if they aren't there),
@@ -36,7 +36,7 @@ set -Eeuo pipefail
 trap 'printf "\nError: setup stopped unexpectedly (line %s).\n" "$LINENO" >&2' ERR
 
 DOMAIN=""; EMAIL=""; DIR="/opt/studio-build"; WATCH=0; KEEP=10
-GIT_URL="ssh://git@gitzone.net:2222/gmelh/AstrologyStudio.git"
+GIT_URL="https://github.com/studioappsorg/astrology_studio.git"
 
 die() { printf 'Error: %s\n' "$*" >&2; exit 1; }
 say() { printf '%s\n' "$*"; }

@@ -1,5 +1,27 @@
 # Changelog
 
+## 1.21.6
+
+### Images now come from GitHub
+
+- The code now lives at **github.com/studioappsorg/astrology_studio**, and releases are built there by
+  GitHub Actions (Intel/AMD and ARM) and published as `ghcr.io/studioappsorg/astrologystudio`
+  whenever a `vX.Y.Z` tag is pushed. The installer and `astrologystudio update` use that image.
+- **Existing installs:** re-run the installer once
+  (`curl -fsSL https://astro.getstudioapps.com | sudo bash`). It switches the image from
+  `registry.getstudioapps.com` to GitHub's registry, keeping the same version tag, and keeps your
+  data and settings. After that, `astrologystudio update` works as before.
+- The build server (`deploy/build-server`) is now optional, for building and hosting the image
+  yourself; it fetches the code from GitHub by default.
+
+## 1.21.5
+
+### The installer's new address
+
+- The installer is now served from **https://astro.getstudioapps.com**, so installing is
+  `curl -fsSL https://astro.getstudioapps.com | sudo bash`. The script, its help text and the
+  READMEs say so. Nothing else changes: images still come from `registry.getstudioapps.com`.
+
 ## 1.21.4
 
 ### Fixed: a choice could be lost if the page reloaded while it was being saved

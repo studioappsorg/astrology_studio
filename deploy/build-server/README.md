@@ -1,11 +1,16 @@
-# The build server
+# The build server (optional)
+
+> **Not used by default since 1.21.6.** Releases are now built by GitHub Actions and published to
+> `ghcr.io/studioappsorg/astrologystudio`, which is what the installer uses. This build server is
+> kept for anyone who'd rather build and host the image themselves; installs then use
+> `--image registry.example.com/astrologystudio:latest`.
 
 An Ubuntu server that builds the AstrologyStudio image and keeps it in its own registry.
 Every install pulls the image from there: the installer on first install, and
 `astrologystudio update` after that.
 
 ```
- your PC ──git push──▶ gitzone.net ──git fetch──▶ build server ──docker pull──▶ installs
+ your PC ──git push──▶  GitHub   ──git fetch──▶ build server ──docker pull──▶ installs
                                                   (builds, publishes to
                                                    registry.getstudioapps.com)
 ```
@@ -26,9 +31,9 @@ Every install pulls the image from there: the installer on first install, and
 2. **DNS:** an A record for the registry's address, e.g. `registry.getstudioapps.com`, pointing
    at it. In Cloudflare, set it to **DNS only** (grey cloud). Caddy then gets its certificate
    directly, and the large image downloads go straight to the server.
-3. **Read access to the code.** On the server, make a key with `sudo ssh-keygen -t ed25519`, and
-   add `/root/.ssh/id_ed25519.pub` to the AstrologyStudio repository in Gitea as a read-only
-   **deploy key**.
+3. **Read access to the code.** The repository is public, so nothing is needed. For a private
+   copy over SSH, make a key with `sudo ssh-keygen -t ed25519` and add `/root/.ssh/id_ed25519.pub`
+   to the repository as a read-only **deploy key**.
 4. **Copy this folder to the server and run:**
 
    ```sh
@@ -36,7 +41,7 @@ Every install pulls the image from there: the installer on first install, and
    ```
 
    Leave out `--watch` if you'd rather build by hand. `--git URL` changes where the code is
-   cloned from (the default is `ssh://git@gitzone.net:2222/gmelh/AstrologyStudio.git`), and
+   cloned from (the default is `https://github.com/studioappsorg/astrology_studio.git`), and
    `--keep N` sets how many versions the registry keeps (default 10).
 
 ## Releasing
@@ -64,9 +69,9 @@ Each release is published as `1.16.0`, `1.16`, `1` and `latest`. Installs follow
 
 ## Pointing installs at it
 
-The installer's default image is `registry.getstudioapps.com/astrologystudio:latest` (set at the
-top of `install/install.sh`). If the registry's address is different, change it there, or install
-with `--image your.registry/astrologystudio:latest`. An existing install can switch by editing
+The installer's default image is `ghcr.io/studioappsorg/astrologystudio:latest` (set at the
+top of `install/install.sh`). To use this registry instead, install with
+`--image registry.example.com/astrologystudio:latest`. An existing install can switch by editing
 `ASTROLOGYSTUDIO_IMAGE` in `/opt/astrologystudio/.env`, then running `astrologystudio update`.
 
 ## Notes
@@ -78,5 +83,5 @@ with `--image your.registry/astrologystudio:latest`. An existing install can swi
   builds and publishes whatever the tag points at.
 - **Back up** the registry's `images` volume if you want old versions kept safe. Everything in it
   can be rebuilt from the tags, so it's optional.
-- The GitHub workflow in `.github/workflows/release.yml` (publishing to GHCR) is left in place for
-  a public GitHub copy of the repository; installs no longer use GHCR.
+- The GitHub workflow in `.github/workflows/release.yml` publishes to GHCR, which installs use by
+  default.
