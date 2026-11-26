@@ -92,7 +92,7 @@ jobs:
     steps:
       - uses: actions/checkout@v6
       - name: Lint the installer
-        run: shellcheck install/install.sh scripts/*.sh
+        run: shellcheck install/install.sh install/server-test.sh scripts/*.sh
       - name: Dry run, as people run it (piped into bash)
         run: |
           bash install/install.sh --dry-run --dir "$RUNNER_TEMP/as" --domain astro.example.com < /dev/null

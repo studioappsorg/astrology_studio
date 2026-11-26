@@ -86,7 +86,7 @@ jobs:
             echo "Install on a fresh Ubuntu or Debian server:"
             echo
             echo '```sh'
-            echo 'curl -fsSL https://get.getstudioapps.com/astrologystudio | sudo bash'
+            echo 'curl -fsSL https://astro.getstudioapps.com | sudo bash'
             echo '```'
             echo
             echo "Update an existing install: \`astrologystudio update\`"
