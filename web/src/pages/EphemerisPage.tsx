@@ -12,8 +12,8 @@
  */
 
 import { useState } from 'preact/hooks';
-import { api } from '../api';
-import { SIGNS, textGlyph, zodiac } from '../astro';
+import { api, type ZodiacUsed } from '../api';
+import { SIGNS, textGlyph, zodiac, zodiacText } from '../astro';
 import { Loading, PageHeader, useLoad } from '../ui';
 import { useView } from '../view';
 import { useGlyphs } from './ChartView';
@@ -26,6 +26,8 @@ interface Month {
   events: Array<{ date: string; body: string; kind: 'ingress' | 'station'; sign?: number; direction?: string }>;
   lunations: Array<{ phase: string; datetime_utc: string; moon_longitude?: number }>;
   eclipses: Array<{ type: string; eclipse_type: string; datetime_utc: string }>;
+  zodiac?: ZodiacUsed;
+  sidereal_pending?: boolean;
 }
 
 const PHASES: Record<string, string> = { new_moon: 'New Moon', first_quarter: 'First quarter', full_moon: 'Full Moon', last_quarter: 'Last quarter' };
@@ -93,6 +95,9 @@ export function EphemerisPage() {
                 ))}
               </ul>
               <p class="muted small">Ingresses and stations are dated to the noon after they happen.</p>
+              {(data.data.zodiac?.type === 'sidereal' || data.data.sidereal_pending) && (
+                <p class="muted small">{zodiacText(data.data.zodiac, data.data.sidereal_pending)}, from your active profile.</p>
+              )}
             </aside>
           </div>
         )}

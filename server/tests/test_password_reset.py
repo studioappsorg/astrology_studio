@@ -39,7 +39,7 @@ def fake_smtp(monkeypatch: pytest.MonkeyPatch) -> None:
 
 
 def token_from_last_email() -> str:
-    body = FakeSMTP.sent[-1].get_content()
+    body = FakeSMTP.sent[-1].get_body(("plain",)).get_content()
     found = re.search(r"/reset-password\?token=(\S+)", body)
     assert found, body
     return found.group(1)
@@ -113,5 +113,5 @@ def test_ephemeral_accounts_are_told_where(
     db.execute("UPDATE users SET signs_in_with = 'ephemeral' WHERE email = ?", (ANN["email"],))
     db.commit()
     client.post("/api/v1/auth/password-reset", json={"email": ANN["email"]})
-    body = FakeSMTP.sent[-1].get_content()
+    body = FakeSMTP.sent[-1].get_body(("plain",)).get_content()
     assert "ephemeralREST" in body and "reset-password?token=" not in body

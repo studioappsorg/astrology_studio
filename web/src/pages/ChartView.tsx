@@ -13,7 +13,7 @@
 
 import { useEffect, useRef, useState } from 'preact/hooks';
 import { api, type ChartData, type ChartDetail, type ChartSummary, type DerivedDetail, type FoundAspect, type HellenisticBlock, type Point } from '../api';
-import { ASPECT_INFO, BODY_LETTERS, degrees, dignities, dm, HOUSE_SYSTEM_NAMES, houseOf, midpointTrees, signed, textGlyph, zodiac, zodiacLong } from '../astro';
+import { ASPECT_INFO, BODY_LETTERS, degrees, dignities, dm, HOUSE_SYSTEM_NAMES, houseOf, midpointTrees, signed, textGlyph, zodiac, zodiacLong, zodiacText } from '../astro';
 import { AspectGrid } from '../components/AspectGrid';
 import { TimingControls, TimingPane } from '../components/Timing';
 import { ChartModal, derivedLine, SlotCard, type SlotRef } from '../components/ChartSlots';
@@ -83,12 +83,14 @@ function loadSlot(ref: SlotRef | null, hellenistic: boolean): Promise<SlotChart 
   const query = hellenistic ? '?mode=hellenistic' : '';
   if (ref.derived) {
     return api<DerivedDetail>(`/charts/derived/${ref.id}${query}`).then((d) => ({
-      id: d.id, name: d.name, line: derivedLine(d), home: d.parent_id ?? ref.parent ?? d.id,
+      id: d.id, name: d.name, line: [derivedLine(d), zodiacText(d.zodiac, d.sidereal_pending)].filter(Boolean).join(' · '),
+      home: d.parent_id ?? ref.parent ?? d.id,
       points: d.points, houses: d.houses, aspects: d.aspects, hellenistic: d.hellenistic ?? null, timeUnknown: false,
     }));
   }
   return api<ChartDetail>(`/charts/${ref.id}${query}`).then((c) => ({
-    id: c.id, name: c.name, line: birthLine(c), home: c.id, points: c.points, houses: c.houses, aspects: c.aspects,
+    id: c.id, name: c.name, line: [birthLine(c), zodiacText(c.zodiac, c.sidereal_pending)].filter(Boolean).join(' · '),
+    home: c.id, points: c.points, houses: c.houses, aspects: c.aspects,
     hellenistic: c.hellenistic ?? null, timeUnknown: !!c.note?.time_unknown,
   }));
 }
@@ -505,7 +507,7 @@ function SlotPositions({ points, keys, houses, focus, onFocus, hellenistic, deta
 /** When and where, for a chart worked out here (a return, composite or Davison chart). */
 export function dataLine(data: ChartData): string {
   const local = data.datetime_local || data.datetime_utc;
-  return [fmtDate(local.slice(0, 10)), local.slice(11, 16), data.location?.name].filter(Boolean).join(' · ');
+  return [fmtDate(local.slice(0, 10)), local.slice(11, 16), data.location?.name, zodiacText(data.zodiac)].filter(Boolean).join(' · ');
 }
 
 export function birthLine(chart: ChartDetail): string {

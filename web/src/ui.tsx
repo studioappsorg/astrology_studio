@@ -158,6 +158,7 @@ interface FieldProps {
   autoComplete?: string;
   placeholder?: string;
   inputMode?: 'numeric' | 'text' | 'email';
+  disabled?: boolean;
 }
 
 export function Field({ label, hint, value, onValue, id, type = 'text', ...input }: FieldProps) {
@@ -185,11 +186,13 @@ interface ButtonProps {
   type?: 'button' | 'submit';
   disabled?: boolean;
   onClick?: () => void;
+  /** Submits this form (by id) from outside it, such as a modal's footer. */
+  form?: string;
 }
 
-export function Button({ variant = 'plain', busy, children, disabled, type = 'button', onClick }: ButtonProps) {
+export function Button({ variant = 'plain', busy, children, disabled, type = 'button', onClick, form }: ButtonProps) {
   return (
-    <button type={type} class={`btn btn--${variant}`} disabled={disabled || busy} aria-busy={busy} onClick={onClick}>
+    <button type={type} class={`btn btn--${variant}`} disabled={disabled || busy} aria-busy={busy} onClick={onClick} form={form}>
       {busy ? 'Working…' : children}
     </button>
   );

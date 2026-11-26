@@ -1,5 +1,162 @@
 # Changelog
 
+## 1.22.0
+
+Needs the matching ephemeralREST for the new sign-up, key and email features and for sidereal
+charts. With an older ephemeralREST everything works as before: sign-up uses ephemeralREST's
+pages, and sidereal charts stay tropical, saying so.
+
+### Sidereal charts
+
+- Choose **Sidereal** in a calculation profile, with **Lahiri**, **Krishnamurti (KP)**,
+  **Fagan-Bradley** or **B.V. Raman**. ephemeralREST now sends the four ayanamsas with every
+  calculation (the true ayanamsa for the chart's moment), and AstrologyStudio moves every position,
+  cusp and angle back by the chosen one. Whole Sign houses start at the sidereal Ascendant's sign.
+  Transits, progressions, solar arc, returns, composite, Davison, harmonics, events and the
+  ephemeris page all follow.
+- The chart, the sheet and the ephemeris page show the zodiac used, such as *Sidereal, Lahiri
+  23°39'*. A chart worked out before the ayanamsas were available says it's still tropical.
+- The ephemeris cache keeps each month's ayanamsas (migration 008), and asks again for months
+  cached without them.
+
+### Progressions corrected (ephemeralREST)
+
+ephemeralREST's secondary progressions and solar arc now use a day for a year (the progressed
+moment is the birth plus one day for each year lived). They had been giving the sky on the target
+date. Progressed and solar arc charts saved before are worked out again the next time they're
+opened. AstrologyStudio's own transit and progression tables (Events, the moving rings) were
+already right.
+
+### Signing up on this site's own pages
+
+- **Site key** (owner): Settings → ephemeralREST → *Site key*, a domain key for this site's
+  address. Saving it registers the address with ephemeralREST. From then on the sign-up and
+  password emails link back to this site: **/auth/verify** confirms the address and sets the
+  password in one step and signs the person in, and **/auth/set-password** is *Forgot your
+  password?* for people who sign in through ephemeralREST. The browser only ever talks to
+  AstrologyStudio; it calls ephemeralREST. Without a site key (or with an older ephemeralREST),
+  it's the old way through ephemeralREST's pages.
+- **I don't have a key**: under the key field (Getting started and Account). Enter a name and
+  email, open the emailed link in any browser, choose a password, and the new key is saved to
+  the person who asked.
+- **Use my key from another site**: log in with an ephemeralREST account (email, password,
+  emailed code) and its key, and the charts on it, come here. People can also just log in on the
+  login page with the account from another site. If a new key's chart list is missing some of
+  your charts, you're asked whether to add them to it, leave them out (not deleted) or keep your
+  current key. A key or account from a different ephemeralREST says so, with its address for the
+  owner.
+- **From another site** (Account → Your data): choose the data download from another
+  AstrologyStudio site to bring its folders, tags, ratings and notes across for the charts you have
+  here. Running it again doesn't make copies.
+- Migration 009: `key_requests` and `pending_keys`.
+
+### Managing people (owner)
+
+- Clicking someone under **Users** opens their window: their details and key prefix, **Allowed
+  to log in**, **Limits**, their **Activity**, and *Remove user*. *All activity* below the list
+  shows everyone's, including attempts with addresses that have no account.
+- **Switching an account off** ends its sessions at once and stops every login (password,
+  ephemeralREST and code) before ephemeralREST is asked. Charts, settings and the key are kept.
+  The next login after switching back on asks for a code even on a remembered browser. The owner
+  can't be switched off.
+- **Limits** on calls sent to ephemeralREST for each person, per hour, day, week (from Monday) and
+  month, in a time zone the owner chooses; site defaults under Settings → New accounts. Answers
+  from the cache are free. At a limit the call isn't made, and the answer is *You've reached your
+  limit for today* with when it resets. ephemeralREST's own rate limit is passed on the same way.
+  The owner is never limited. People see their usage on Account.
+- **Activity**: logins, codes, sign-ups, logouts, password and key changes, limits reached and the
+  owner's changes, with time, address and browser, never a password, code, token or key (a key's
+  first characters at most). Kept 12 months by default (changeable), deleted with the account, in
+  the person's data download, and shown to them on Account.
+- Migration 010: `users.disabled_at/by/reason` and `ignore_device`, `auth_events`, `user_limits`,
+  `usage_counts`, and `sessions.reauth_at`.
+
+### Show my key, Replace my key
+
+- Two buttons on Account (*Your access key* on a hosted site). Both ask the person to confirm it's
+  them first: their password, or their ephemeralREST password and an emailed code (always). Good
+  for 5 minutes in that session; five wrong tries lock it for 15 minutes.
+- **Show my key** decrypts this site's own copy (ephemeralREST isn't asked), sent with
+  `Cache-Control: no-store`, and hides it again after a minute. Nobody, the owner included, can
+  see anyone else's key.
+- **Replace my key** asks ephemeralREST for a new key without emailing it, saves it, clears the
+  old key's cache and shows the new key once. The old one stops working everywhere. ephemeralREST
+  emails a notice without the key.
+
+### Emails from this site, with an email designer
+
+- **Send ephemeralREST's emails from this site** (Settings → Email): sign-up links, login codes,
+  password resets, welcome and key notices for accounts made on this site go out through this
+  site's mail server, with its designs. It can be switched on when email is set up and a test has
+  gone through, a site key is saved, and ephemeralREST's admin has allowed it for the site; until
+  then it lists what's missing. Accounts made elsewhere keep ephemeralREST's emails, so a site never
+  sees another's codes or tokens. Codes and tokens are used only to build the email: never stored or
+  logged. A failed send asks the person to try again, is shown to the owner and recorded.
+- **Email designs**: one look for every email (logo, accent colour, sender name, reply-to,
+  footer) and a subject and body for each email in a small markup (paragraphs, bold, italic,
+  links, a button line, placeholders; no HTML), checked on save. A preview in light, dark and
+  plain text, *Send me a test* and *Reset to default*. Every email is HTML (600 px, inline styles)
+  with a plain-text version. The logo emails show is served at `/api/v1/email/logo` (PNG, JPEG
+  or WebP).
+- The app's own emails (password resets, the test message) use the designs too, and new ones
+  confirm a changed password and, if the owner switches it on, an account being switched off or on.
+- Migration 011: `email_templates`.
+
+### Security
+
+- Every page is sent with a Content Security Policy (`connect-src 'self'` among others) and
+  `nosniff`, `Referrer-Policy`, `X-Frame-Options` and `Permissions-Policy` headers. The light/dark
+  start-up script moved out of the page into `theme-boot.js` so inline scripts can be refused.
+- A wrong password or code when fetching a key from another site no longer logs you out of
+  AstrologyStudio (it answered 401, which the app takes as "your session ended").
+
+### Tests
+
+New: `test_site_signup.py`, `test_user_management.py`, `test_key_reveal.py`,
+`test_email_design.py`, `test_sidereal.py`, and browser tests for sign-up, the user window, the key
+buttons, the email designer, and that the browser never talks to anywhere but this site.
+
+### Installer: runs behind the server's shared Caddy, so Studio apps can share a server
+
+AstrologyStudio no longer runs a Caddy of its own. The installer sets up the server's shared
+Caddy from **studio-edge** (installed as the `studioapps` command), which holds ports 80 and 443
+for every Studio app on the server and gets each one's certificate. Other Studio apps can now be
+installed on the same server, before or after AstrologyStudio.
+
+- **The shared Caddy:** the installer installs `studioapps` 0.1.0 from
+  `https://getstudioapps.com/edge/edge-0.1.0.sh`, checking its SHA-256 first. It keeps a newer
+  `studioapps` that another app has already installed. Then it starts the shared Caddy
+  (`studioapps edge ensure`) and adds AstrologyStudio's site to it
+  (`studioapps site add astrologystudio`), which Caddy checks before reloading.
+- **New installs** go in `/opt/studioapps/astrologystudio`, beside the shared Caddy in
+  `/opt/studioapps/edge`. **Existing installs stay in `/opt/astrologystudio`.**
+- **compose.yml:** no `caddy` service. The app joins the `studioapps` network as
+  `astrologystudio-app`, and the site file `astrologystudio.caddy` sits beside compose.yml.
+- **Forwarded addresses:** the app now trusts them from the shared Caddy (`172.31.250.2`) only,
+  not from anyone. Other apps' containers share that network, and could otherwise claim to be any
+  address, getting round login throttles.
+- **Ports:** the installer still stops before installing anything if something other than the
+  shared Caddy holds ports 80 and 443. It names another Studio app's own Caddy, and says to update
+  that app first.
+- **New options:** `--caddy-extra FILE` adds lines to the site, such as a `tls` block (kept in
+  `site-extra.caddy` for later runs), and `--edge-script FILE` uses a local copy of the shared
+  Caddy's script (still checked).
+- **`astrologystudio logs caddy`** now follows the shared Caddy's log. `studioapps sites` lists
+  every app the shared Caddy serves.
+
+**Existing installs:** run the installer again
+(`curl -fsSL https://astro.getstudioapps.com | sudo bash`). It backs up the data, copies the
+certificate from AstrologyStudio's own Caddy (so Let's Encrypt isn't asked again), stops that
+Caddy, and starts AstrologyStudio behind the shared Caddy. That takes a few seconds. If any step
+fails, it puts the old setup back and AstrologyStudio carries on with its own Caddy. The old setup
+is kept in `backups/before-shared-caddy-<date>`, and the old Caddy's storage in the Docker volume
+`astrologystudio_caddy_data` until you remove it.
+
+**Tests:** `install/server-test.sh` runs the real installer against Docker and the shared Caddy on
+a throwaway server. Its 14 checks cover a fresh install, re-runs, sharing with another app in
+either order, faked forwarded addresses, moving a 1.21.6 install (same certificate, same data), a
+failed move being put back, and another container holding port 80.
+
 ## 1.21.6
 
 ### Images now come from GitHub

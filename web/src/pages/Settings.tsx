@@ -11,12 +11,14 @@
  */
 
 import { useEffect, useState } from 'preact/hooks';
-import { api, type AuthStatus, type Calculation, type Connection } from '../api';
+import { api, type AuthStatus, type Calculation, type Connection, type Limits, type SiteKeyStatus } from '../api';
+import { emptyLimits, LimitFields } from '../components/Activity';
 import { useSession } from '../session';
 import { Link } from '../router';
 import { Button, Checkbox, describe, Field, Loading, Notice, PageHeader, Select, useLoad, useSubmit } from '../ui';
 import { Profiles } from './Profiles';
 import { EmailSettings } from './EmailSettings';
+import { EmailDelivery, EmailDesigns } from './EmailDesigns';
 import { LogoSettings } from './LogoSettings';
 import { PROFILE_CHANGED, useAppearance } from '../appearance';
 import { oneOf } from '../prefs';
@@ -79,8 +81,8 @@ export function SettingsPage() {
         {section === 'calculation' && <Profiles />}
         {section === 'ephemeral' && <EphemeralCard owner={owner} />}
         {section === 'business' && <LogoSettings />}
-        {section === 'email' && <EmailSettings />}
-        {section === 'accounts' && <Registration />}
+        {section === 'email' && <><EmailSettings /><EmailDelivery /><EmailDesigns /></>}
+        {section === 'accounts' && <><Registration /><DefaultLimits /></>}
         {section === 'themes' && <SiteThemes />}
       </div>
     </>
@@ -96,10 +98,59 @@ function EphemeralCard({ owner }: { owner: boolean }) {
       <p class="muted">The calculation service that stores your charts and works out every position.</p>
       <Loading result={connection}>
         {() => connection.state === 'ready' && (owner
-          ? <ConnectionForm current={connection.data} onSaved={reload} />
+          ? <><ConnectionForm current={connection.data} onSaved={reload} /><SiteKey /></>
           : <ConnectionFacts current={connection.data} />)}
       </Loading>
     </section>
+  );
+}
+
+/** The site key: an ephemeralREST domain key for this site's address, so sign-up and password
+ * emails link back to this site's own pages instead of ephemeralREST's. */
+function SiteKey() {
+  const [status, reload] = useLoad(() => api<SiteKeyStatus>('/connection/site-key'));
+  const [key, setKey] = useState('');
+  const [forgetError, setForgetError] = useState<string | null>(null);
+  const { busy, error, onSubmit } = useSubmit(async () => {
+    await api('/connection/site-key', 'PUT', { api_key: key });
+    setKey('');
+    reload();
+  });
+  const forget = () => {
+    if (!confirm('Forget the site key? Sign-up emails will link to ephemeralREST\'s pages again.')) return;
+    api('/connection/site-key', 'DELETE').then(reload).catch((e: unknown) => setForgetError(describe(e)));
+  };
+  return (
+    <form class="form" onSubmit={onSubmit}>
+      <h3>Site key</h3>
+      <p class="muted">
+        A domain key for this site's address, from ephemeralREST. With one, people sign up and reset their password on
+        this site's own pages, and the emailed links come back here. Without one, those links go to ephemeralREST's site.
+      </p>
+      <Loading result={status}>
+        {() => status.state === 'ready' && (
+          <>
+            {status.data.configured && (
+              <dl class="facts">
+                <div><dt>Key</dt><dd><code>{status.data.prefix}…</code> for {status.data.domain}</dd></div>
+                <div><dt>Emailed links</dt><dd>{status.data.links_here
+                  ? `Come back to ${status.data.origin}`
+                  : `Go to ephemeralREST's pages${status.data.reason ? `: ${status.data.reason}` : ''}`}</dd></div>
+              </dl>
+            )}
+            {error && <Notice tone="error">{error}</Notice>}
+            {forgetError && <Notice tone="error">{forgetError}</Notice>}
+            <Field label={status.data.configured ? 'Replace the site key' : 'Site key'} type="password" value={key} onValue={setKey}
+                   autoComplete="off" placeholder="eph_…" id="field-site-key" required
+                   hint={`It must be for ${new URL(status.data.origin).hostname} (or the domain it's part of). Saving it registers this address with the key.`} />
+            <div class="actions">
+              <Button type="submit" variant="primary" busy={busy}>Check and save</Button>
+              {status.data.configured && <Button variant="danger" onClick={forget}>Forget site key</Button>}
+            </div>
+          </>
+        )}
+      </Loading>
+    </form>
   );
 }
 
@@ -179,15 +230,55 @@ function Registration() {
     <section class="card form-card">
       <h2>New accounts</h2>
       <p class="muted">
-        Let people create their own accounts from the login page. Each account is made with ephemeralREST:
-        they verify their email, set a password there, then log in here with an emailed code.
+        Let people create their own accounts from the login page. Each account is made with ephemeralREST.
+        With a site key (in the ephemeralREST section) it all happens on this site: one emailed link, choose a
+        password, done. Without one, they verify their email and set a password on ephemeralREST's site, then log in
+        here with an emailed code.
       </p>
       {error && <Notice tone="error">{error}</Notice>}
       <Loading result={status}>
         {() => status.state === 'ready' && (
-          <Checkbox label="Allow new people to create accounts" checked={status.data.registration_open} onChecked={change} />
+          <>
+            <Checkbox label="Allow new people to create accounts" checked={status.data.registration_open} onChecked={change} />
+            {status.data.registration_open && (
+              <p class="muted small">Sign-up emails link to {status.data.signup_flow === 'here' ? 'this site' : "ephemeralREST's site"}.</p>
+            )}
+          </>
         )}
       </Loading>
+    </section>
+  );
+}
+
+/** Limits for everyone without their own, and the time zone hours and days are counted in. */
+function DefaultLimits() {
+  const [current] = useLoad(() => api<{ limits: Limits; time_zone: string }>('/settings/default-limits'));
+  const [values, setValues] = useState<Limits>(emptyLimits());
+  const [zone, setZone] = useState('');
+  const [saved, setSaved] = useState(false);
+  useEffect(() => {
+    if (current.state === 'ready') { setValues(current.data.limits); setZone(current.data.time_zone); }
+  }, [current.state]);
+  const { busy, error, onSubmit } = useSubmit(async () => {
+    setSaved(false);
+    await api('/settings/default-limits', 'PUT', { limits: values, time_zone: zone.trim() || 'UTC' });
+    setSaved(true);
+  });
+  return (
+    <section class="card form-card">
+      <h2>Limits</h2>
+      <p class="muted">
+        How many calls this site may send to ephemeralREST for each person, for everyone without limits of their own
+        (set those in Users). Charts already loaded cost nothing, and you're never limited. Leave a box empty for no limit.
+      </p>
+      <form class="form" onSubmit={onSubmit}>
+        {error && <Notice tone="error">{error}</Notice>}
+        {saved && <Notice tone="success">Saved.</Notice>}
+        <LimitFields value={values} onValue={(v) => { setValues(v); setSaved(false); }} idPrefix="default-limit" />
+        <Field label="Time zone" value={zone} onValue={(v) => { setZone(v); setSaved(false); }} id="limits-time-zone"
+               placeholder="UTC" hint="Where hours, days, weeks (from Monday) and months start, such as Australia/Perth." />
+        <div class="actions"><Button type="submit" variant="primary" busy={busy}>Save limits</Button></div>
+      </form>
     </section>
   );
 }

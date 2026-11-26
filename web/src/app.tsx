@@ -72,7 +72,11 @@ export function App() {
       .then((status) => {
         setHosted(status.hosted ?? false);
         if (status.setup_required) setState({ kind: 'setup' });
-        else if (status.user) signedIn(status.user);
+        // An emailed link opens its page even in a browser that's logged in (an owner finishing
+        // "I don't have a key", say).
+        else if (['/auth/verify', '/auth/set-password'].includes(location.pathname) && location.search) {
+          setState({ kind: 'login', registrationOpen: status.registration_open, passwordReset: !!status.password_reset });
+        } else if (status.user) signedIn(status.user);
         else setState({ kind: 'login', registrationOpen: status.registration_open, passwordReset: !!status.password_reset });
       })
       .catch((error: unknown) => setState({ kind: 'error', message: describe(error) }));

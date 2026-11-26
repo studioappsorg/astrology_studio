@@ -37,8 +37,9 @@ def transits(
 ) -> dict[str, Any]:
     points = ephemeris.at(at)
     if latitude is not None and longitude is not None:
+        shift = ephemeris.ayanamsa_at(at) or 0.0  # the angles are worked out tropical here
         for key, lon in angles.angles(at, latitude, longitude).items():
-            points[key] = _angle_point(lon)
+            points[key] = _angle_point(lon - shift)
     return {"points": points}
 
 
@@ -62,8 +63,14 @@ def progressions(
         mc = (natal_points["mc"]["lon"] + arc) % 360.0
         points["mc"] = _angle_point(mc)
         if latitude is not None:
+            # The Ascendant comes from the MC through the equator, so in tropical terms: a
+            # sidereal MC goes back by the ayanamsa first, and the Ascendant comes back by it.
+            shift = ephemeris.ayanamsa_at(moment) or 0.0
             eps = angles.obliquity(angles.julian_day(moment))
-            points["asc"] = _angle_point(angles.asc_from_ramc(angles.ramc_from_mc(mc, eps), eps, latitude))
+            tropical_mc = (mc + shift) % 360.0
+            points["asc"] = _angle_point(
+                angles.asc_from_ramc(angles.ramc_from_mc(tropical_mc, eps), eps, latitude) - shift
+            )
     return {"points": points, "moment": moment.isoformat(), "arc": arc}
 
 

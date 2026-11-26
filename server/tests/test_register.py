@@ -45,7 +45,7 @@ def test_register_then_log_in_with_code(
     open_registration(client, owner, fake)
     assert client.get("/api/v1/auth/status").json()["registration_open"] is True
     response = client.post("/api/v1/auth/register", json={"name": "New Person", "email": NEW.upper()})
-    assert response.status_code == 202 and response.json() == {"email": NEW}
+    assert response.status_code == 202 and response.json() == {"email": NEW, "flow": "portal"}
     assert fake.bodies[-1] == {"name": "New Person", "email": NEW}
 
     # Before the emailed links are followed, ephemeralREST refuses the login.

@@ -31,6 +31,7 @@ from datetime import UTC, datetime, timedelta
 from typing import Any
 
 from .db import now
+from .errors import ProblemError
 from .ids import new_id
 
 SESSION_COOKIE = "as_session"
@@ -113,6 +114,19 @@ def public_user(row: sqlite3.Row) -> dict[str, Any]:
     return user
 
 
+DISABLED_DETAIL = "This account is switched off. Contact the site's owner."
+
+
+def disabled_problem() -> ProblemError:
+    """The same answer whatever the owner's reason (that's only shown to the owner)."""
+    return ProblemError(403, "account-disabled", "Can't log in", DISABLED_DETAIL)
+
+
+def is_disabled(conn: sqlite3.Connection, email: str) -> bool:
+    row = conn.execute("SELECT disabled_at FROM users WHERE email = ?", (email,)).fetchone()
+    return bool(row is not None and row["disabled_at"])
+
+
 # People who registered through ephemeralREST: no password here, so this can never match one.
 NO_LOCAL_PASSWORD = "!ephemeralrest"
 REGISTRATION_SETTING = "registration_open"
@@ -188,12 +202,15 @@ def start_session(conn: sqlite3.Connection, user_id: str) -> str:
 def load_session(conn: sqlite3.Connection, token: str) -> Session | None:
     """The session for a cookie value, extending it while it's in use."""
     row = conn.execute(
-        "SELECT s.token_hash, s.csrf_token, s.expires_at, s.last_seen_at, u.id, u.name, u.email, u.is_owner"
-        " FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
+        "SELECT s.token_hash, s.csrf_token, s.expires_at, s.last_seen_at, u.id, u.name, u.email, u.is_owner,"
+        " u.disabled_at FROM sessions s JOIN users u ON u.id = s.user_id WHERE s.token_hash = ?",
         (_token_hash(token),),
     ).fetchone()
     moment = datetime.now(UTC)
     if row is None or datetime.fromisoformat(row["expires_at"]) < moment:
+        return None
+    if row["disabled_at"]:  # switched off by the owner: no request carries on
+        conn.execute("DELETE FROM sessions WHERE token_hash = ?", (row["token_hash"],))
         return None
     if datetime.fromisoformat(row["last_seen_at"]) < moment - _SEEN_RESOLUTION:
         conn.execute(
@@ -218,6 +235,29 @@ def end_other_sessions(conn: sqlite3.Connection, user_id: str, keep_token: str |
         "DELETE FROM sessions WHERE user_id = ? AND token_hash != ?",
         (user_id, _token_hash(keep_token) if keep_token else ""),
     )
+
+
+# ---------------------------------------------------------------------------
+# Confirming who it is again (before showing or replacing a key)
+
+REAUTH_LIFETIME = timedelta(minutes=5)
+
+
+def mark_reauth(conn: sqlite3.Connection, token: str) -> None:
+    conn.execute("UPDATE sessions SET reauth_at = ? WHERE token_hash = ?", (now(), _token_hash(token)))
+
+
+def reauth_until(conn: sqlite3.Connection, token: str | None) -> datetime | None:
+    """When this session's last check runs out, or None if there's no check still good."""
+    if not token:
+        return None
+    row = conn.execute(
+        "SELECT reauth_at FROM sessions WHERE token_hash = ?", (_token_hash(token),)
+    ).fetchone()
+    if row is None or not row["reauth_at"]:
+        return None
+    until = datetime.fromisoformat(row["reauth_at"].replace("Z", "+00:00")) + REAUTH_LIFETIME
+    return until if until > datetime.now(UTC) else None
 
 
 # ---------------------------------------------------------------------------

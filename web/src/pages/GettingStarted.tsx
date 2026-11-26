@@ -46,7 +46,7 @@ export function GettingStarted() {
               title: 'Add your API key',
               hint: key.configured ? `Key ${key.prefix}… works` : 'Each person uses their own ephemeralREST key',
               done: key.configured,
-              body: <ApiKeyForm status={key} onSaved={reload} disabled={!connection.reachable} />,
+              body: <ApiKeyForm status={key} onSaved={reload} disabled={!connection.reachable} inSetup />,
             },
           ];
           const done = steps.filter((s) => s.done).length;

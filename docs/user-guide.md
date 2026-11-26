@@ -12,7 +12,15 @@ the working tools around it.
    checked before it's saved. The installer can set it for you with `--ephemeral`.
 3. **Add your API key**: Account → Your ephemeralREST key. Each person uses their own key; it's
    checked with ephemeralREST, then stored encrypted. Your key is in the email ephemeralREST
-   sent when you set your password.
+   sent when you set your password. **No account yet?** Open *I don't have a key*, enter your name
+   and email, and follow the emailed link: the new key is saved to you, whichever browser you
+   open the link in. **Used AstrologyStudio on another site?** Open *Use my key from another
+   site* and log in with that ephemeralREST account: its key, and the charts on it, come here.
+4. **Save a site key** (owner, recommended): Settings → ephemeralREST → *Site key*. It's a
+   *domain key* for this site's address, from whoever runs your ephemeralREST. With one, signing
+   up and resetting a password happen on this site's own pages, and the emailed links come back
+   here; without one, they go to ephemeralREST's pages. Saving it registers this site's address
+   with ephemeralREST.
 
 Add other people under Users. Only the owner sees that page. Each person has their own charts, folders and
 settings.
@@ -22,11 +30,18 @@ settings.
 The owner can switch on Settings → New accounts → *Allow new people to create accounts* (off by
 default). The login page then shows **New here? Create an account**:
 
-1. Enter your name and email. ephemeralREST emails a link to verify the address.
-2. A second email has a link to set your password. Once it's set, a third email brings your API
-   key. Keep it safe; AstrologyStudio saves it for you when you first log in.
-3. Log in with that email and password. A 6-digit code is emailed to you; enter it to finish.
-   Tick *Remember this browser for 28 days* to skip the code next time.
+1. Enter your name and email. An email with a link follows.
+2. **With a site key:** the link opens this site. Choose your password and you're in; the address
+   is confirmed and your key saved in the same step.
+3. **Without one:** the link opens ephemeralREST's site to verify the address, a second email has
+   a link to set your password, and a third brings your API key. Then log in here with that email
+   and password, and enter the 6-digit code that's emailed to you.
+
+Tick *Remember this browser for 28 days* when entering a code to skip it next time. Someone who
+used AstrologyStudio on another site (with the same ephemeralREST) doesn't sign up again: they
+log in here with the same email and password, and their charts come with them. To bring their
+folders, tags, ratings and notes too, they download their data on the old site (Account → *Your
+data*) and choose that file under Account → *From another site*.
 
 These accounts use their ephemeralREST password, so it's changed in ephemeralREST, not under
 Account. They're marked *ephemeralREST* under Users. Switching registration off again stops new
@@ -48,8 +63,27 @@ email provider or sending service (Postmark, Mailgun, SMTP2GO, AuthSMTP, Amazon 
 
 *Send test* sends a short message (to your own address unless you give another) and, if it
 can't be sent, says why: the server didn't answer, refused the login, or won't send from that
-address. Only the owner sees or changes these settings. The emails ephemeralREST sends (sign-up,
-password and sign-in codes) come from ephemeralREST, not from here.
+address. Only the owner sees or changes these settings. Changing them asks for a new test.
+
+**Send ephemeralREST's emails from this site.** Sign-up links, login codes, password resets and
+key notices normally come from ephemeralREST. Switch this on and, for accounts made on this site,
+they come from your mail server instead, with your designs. It can be switched on once email is
+set up and a test has gone through, a site key is saved, and whoever runs your ephemeralREST has
+allowed it for your site; until then it lists what's missing. People whose accounts were made
+elsewhere keep getting ephemeralREST's own emails, so no site ever sees another's codes. If an
+email can't be sent, the person is asked to try again, the failure is shown here and recorded in
+the activity log. Switching it off hands the emails back to ephemeralREST.
+
+**Email designs.** Every email shares one look: the logo (from Business details, or a smaller one
+just for email; PNG, JPEG or WebP), an accent colour for buttons and links, the sender name and
+reply-to address, and a footer. Each email (confirm your email, your login code, reset your
+password, welcome, your key was replaced, your password was changed, and an optional one when an
+account is switched off or on) has a subject and a body you can change. The body takes paragraphs
+(a blank line between), `**bold**`, `*italic*`, links as `[text](https://…)` and a button on a
+line of its own as `[[Button text|{link}]]`, plus the placeholders listed under it, such as
+`{name}`, `{link}` and `{code}`; no HTML. The preview beside it updates as you type, in light, dark
+and plain text. *Send me a test* sends it to you with sample details, and *Reset to default* puts
+the original back. Every email goes out as HTML with a plain-text version alongside.
 
 ### Business details and logo (owner)
 
@@ -72,9 +106,33 @@ Once email is set up, the login page offers **Forgot your password?**. Enter you
 there's an account for it, a link to choose a new password is emailed. The link works once, for
 an hour; setting a new password logs the account out everywhere else. The page says the same
 thing whether or not the address has an account, so it can't be used to find out who does.
-Accounts that sign in through ephemeralREST get an email saying their password is changed there.
+Accounts that sign in through ephemeralREST get a link too when the owner has saved a site key
+(the new password is then their ephemeralREST password); without one, an email saying their
+password is changed there. A changed password is confirmed by email.
 Without email, the owner can give someone a new password by running `astrologystudio
 reset-password --email them@…` on the server.
+
+### Managing people (owner)
+
+**Users** lists everyone who can log in. Click someone to open their window:
+
+- **Allowed to log in**: switch it off to log them out at once and stop every way of logging in.
+  Their charts, settings and key are kept, and switching it back on lets them in again (with an
+  emailed code, if they sign in through ephemeralREST). The optional reason is only for you; they're
+  told the account is switched off. You can't switch off the owner.
+- **Limits**: how many calls this site may send to ephemeralREST for them, per hour, day, week
+  and month. Looking at charts that are already loaded doesn't count; new and changed charts,
+  returns, ephemeris pages and the like do. Leave a box empty for no limit, or tick *Use site
+  defaults* (set under Settings → New accounts → *Limits*, with the time zone the days are counted
+  in). Usage so far is shown under the boxes. Someone at a limit is told when it resets. The owner
+  is never limited.
+- **Activity**: their logins, codes, sign-up, password and key changes, and what you've changed,
+  newest first. *Failures only* shows wrong passwords, refused logins and the like.
+- **Remove user**.
+
+*All activity*, below the list, shows everyone's, including attempts with addresses that have no
+account here. Activity is kept for 12 months unless you change it there. Each person sees their
+own on Account, and it's in their data download.
 
 ## Finding your way around
 
@@ -398,8 +456,13 @@ solar arc directions or progressions round the natal chart.
   largest orb for moving charts, and the Part of Fortune: the same formula day and night (the
   default), or reversed at night as tradition has it. Keep several and switch between them on any
   chart.
-- **Sidereal zodiac**: the choice and the ayanamsa are saved, but positions stay tropical until
-  ephemeralREST supports ayanamsas. The chart says so when this applies.
+- **Sidereal zodiac**: choose it in a calculation profile, with the ayanamsa: Lahiri,
+  Krishnamurti (KP), Fagan-Bradley or B.V. Raman. Every position, cusp and angle moves back by the
+  ayanamsa for the chart's moment (the true ayanamsa, from ephemeralREST), Whole Sign houses
+  start at the sidereal Ascendant's sign, and transits, progressions, returns and the ephemeris
+  page follow. The chart and the sheet show the zodiac and the ayanamsa used, such as
+  *Sidereal, Lahiri 23°39'*. With an ephemeralREST too old to send ayanamsas, positions stay
+  tropical and the chart says so.
 
 My View, your themes, layouts and presets, your profiles and everything the screens remember (light or dark, chart type, layout,
 background shade, panel width, which charts are on the wheel) belong to your account, so they're
@@ -569,10 +632,25 @@ plain colours, so they look the same in Inkscape, Illustrator and other drawing 
 
 Your account menu (your initial and name, top right) → Account:
 
+- **Your ephemeralREST key** (on a hosted site: *Your access key*): the start of your key, and:
+  - *Show my key*, to copy it into another site or app. You confirm it's you first: your password
+    (or, if you sign in through ephemeralREST, its password and an emailed code, even on a
+    remembered browser). That lasts 5 minutes, and five wrong tries lock it for 15. The key is
+    hidden again after a minute.
+  - *Replace my key*: ephemeralREST makes you a new key, and the old one stops working everywhere
+    it's used (other sites, MindForce, anything else); give those the new one, shown once here.
+    Your charts aren't affected. A notice is emailed, without the key in it.
+  - *Use a different key*, *Use my key from another site* (log in with that ephemeralREST account)
+    and *Forget key*. When a different key's chart list is missing some of your charts, you're
+    asked whether to add them to it, leave them out (they're not deleted), or keep your current key.
+- **Your limits**: if the owner has set limits, how much you've used.
+- **Your activity**: your logins and account changes, newest first.
 - **Your data**: *Download my data* saves one JSON file with everything AstrologyStudio keeps for
   you: your chart list (birth details, and what each derived chart was worked out from), notes,
-  folders, ratings and tags, and every setting, theme, layout and preset. Your ephemeralREST key
-  isn't in it.
+  folders, ratings and tags, your activity, and every setting, theme, layout and preset. Your
+  ephemeralREST key isn't in it. *From another site* takes such a file from another AstrologyStudio
+  site and brings across the folders, tags, ratings and notes for the charts you have here;
+  running it again doesn't make copies.
 - **Delete your account**: removes your account and everything kept here for you, and logs you out
   everywhere. Confirm with your password (or, if you log in through ephemeralREST, by typing your
   email address). *Also delete my charts* takes every chart off your chart list too; otherwise they

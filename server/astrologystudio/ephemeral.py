@@ -23,6 +23,7 @@ import re
 import sqlite3
 import threading
 import time
+from collections.abc import Callable
 from typing import Any
 
 import httpx
@@ -100,7 +101,9 @@ class Cache:
 
 class Ephemeral:
     """A client for one person's key. `transport` lets tests stand in for the real server.
-    With a `cache`, chart reads are answered from it when they can be (see Cache)."""
+    With a `cache`, chart reads are answered from it when they can be (see Cache). `meter` is
+    called before each call that actually goes to ephemeralREST (not cache hits): it counts the
+    call against the person's limits, or raises to stop it (see limits.py)."""
 
     def __init__(
         self,
@@ -108,6 +111,8 @@ class Ephemeral:
         api_key: str | None,
         transport: httpx.BaseTransport | None = None,
         cache: Cache | None = None,
+        meter: Callable[[], None] | None = None,
+        headers: dict[str, str] | None = None,
     ) -> None:
         if not base_url:
             raise ProblemError(
@@ -116,11 +121,12 @@ class Ephemeral:
                 "ephemeralREST isn't set up yet",
                 "The owner of this install needs to enter the ephemeralREST address in Settings.",
             )
-        headers = {"Accept": "application/json"}
+        sent = {"Accept": "application/json", **(headers or {})}
         if api_key:
-            headers["X-API-Key"] = api_key
-        self._client = httpx.Client(base_url=base_url, headers=headers, timeout=TIMEOUT, transport=transport)
+            sent["X-API-Key"] = api_key
+        self._client = httpx.Client(base_url=base_url, headers=sent, timeout=TIMEOUT, transport=transport)
         self._cache = cache if api_key else None
+        self._meter = meter
         # Whose answers these are: the key itself is never kept.
         self._owner = hashlib.sha256(f"{base_url}\n{api_key}".encode()).hexdigest()[:32]
 
@@ -146,6 +152,11 @@ class Ephemeral:
             self._cache.put(self._owner, path, data, ttl)
         return data
 
+    def forget_cached(self) -> None:
+        """Drop everything cached for this key (after it's replaced)."""
+        if self._cache is not None:
+            self._cache.forget(self._owner)
+
     def memo(self, name: str, ttl: float, work: Any) -> Any:
         """`work()`, kept like a chart read under `name` (for results worked out from several
         calls, such as a Davison chart). Without a cache, just `work()`."""
@@ -159,6 +170,8 @@ class Ephemeral:
         return result
 
     def _send(self, method: str, path: str, body: Any, params: dict[str, Any] | None) -> Any:
+        if self._meter is not None:
+            self._meter()
         try:
             response = self._client.request(method, path, json=body, params=params)
         except httpx.TimeoutException:
@@ -209,11 +222,13 @@ def _problem(status: int, data: Any) -> ProblemError:
     if status == 404:
         return ProblemError(404, "not-found", "Not found in ephemeralREST", detail)
     if status == 429:
+        # Passed on in the same shape as this site's own limits (limits.py).
         return ProblemError(
             429,
-            "ephemeral-rate-limited",
-            "Too many requests to ephemeralREST",
-            "Wait a minute and try again.",
+            "limit-reached",
+            "You've reached the chart service's limit",
+            detail or "Wait a minute and try again.",
+            period="ephemeral",
         )
     if status in (400, 409, 412, 413, 422):
         return ProblemError(422, "ephemeral-rejected", "ephemeralREST couldn't do that", detail)

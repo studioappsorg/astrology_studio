@@ -15,12 +15,13 @@ from __future__ import annotations
 
 import json
 import logging
+from datetime import UTC, datetime
 from typing import Annotated, Any
 
 from fastapi import APIRouter, Cookie, Request, Response
 from pydantic import EmailStr, Field
 
-from .. import accounts, mail
+from .. import accounts, audit, email_design, mail, signup
 from ..config import Settings
 from ..db import now, transaction
 from ..deps import Db, OwnerPrincipal, UserPrincipal, transport
@@ -92,12 +93,17 @@ def _me(conn: Db, user_id: str, csrf_token: str) -> dict[str, Any]:
 def status(conn: Db, request: Request, as_session: SessionCookie = None) -> dict[str, Any]:
     """Public. The web app calls this first to choose between the setup, login and main screens."""
     session = accounts.load_session(conn, as_session) if as_session else None
+    open_ = accounts.registration_open(conn)
+    here = open_ and signup.links_ready(request, conn)
     return {
         "setup_required": accounts.user_count(conn) == 0,
-        "registration_open": accounts.registration_open(conn),
+        "registration_open": open_,
+        # "here": the sign-up email links back to this site; "portal": to ephemeralREST's pages.
+        "signup_flow": "here" if here else "portal",
         "hosted": request.app.state.settings.hosted,
-        # "Forgot your password?" works only when the owner has set up email.
-        "password_reset": mail.configured(conn),
+        # "Forgot your password?" works when the owner has set up email (or ephemeralREST's
+        # resets link back here).
+        "password_reset": mail.configured(conn) or here,
         "user": _me(conn, session.user_id, session.csrf_token) if session else None,
     }
 
@@ -133,20 +139,28 @@ def login(
     email = normalise_email(body.email)
     keys = _throttle_keys(request, email)
     if throttle.blocked(*keys):
+        audit.record(conn, request, "login", "throttled", email=email)
         raise ProblemError(429, "too-many-attempts", "Too many attempts", "Wait 15 minutes and try again.")
-    row = conn.execute("SELECT signs_in_with FROM users WHERE email = ?", (email,)).fetchone()
+    row = conn.execute(
+        "SELECT signs_in_with, disabled_at, ignore_device FROM users WHERE email = ?", (email,)
+    ).fetchone()
+    if row is not None and row["disabled_at"]:  # checked here, before ephemeralREST is asked
+        audit.record(conn, request, "login", "disabled", email=email)
+        raise accounts.disabled_problem()
     if (row is None and accounts.registration_open(conn)) or (
         row is not None and row["signs_in_with"] == "ephemeral"
     ):
         request_body: dict[str, Any] = {"email": email, "password": body.password}
-        if as_device:
+        if as_device and not (row is not None and row["ignore_device"]):
             request_body["device_token"] = as_device
         try:
-            data = _ephemeral(conn, request).post("/login", request_body)
+            with signup.client(request, conn) as eph:  # the site key says which site this is
+                data = eph.post("/login", request_body)
         except ProblemError as problem:
             if problem.slug != "ephemeral-key-rejected":  # ephemeralREST's 401: wrong email or password
                 raise
             throttle.failed(*keys)
+            audit.record(conn, request, "login", "bad-password", email=email, detail="ephemeralREST")
             raise ProblemError(
                 401,
                 "bad-login",
@@ -154,6 +168,7 @@ def login(
                 "Just registered? Set your password with the link in your second email first.",
             ) from None
         if data.get("must_change_password"):
+            audit.record(conn, request, "login", "password-not-set", email=email)
             raise ProblemError(
                 409,
                 "password-not-set",
@@ -162,13 +177,20 @@ def login(
             )
         throttle.succeeded(keys[0])
         if data.get("2fa_required"):
+            audit.record(conn, request, "login", "code-sent", email=email, detail="ephemeralREST")
+            signup_deliver(request, conn, data, email, str(data.get("name") or email.split("@")[0]))
             return {"two_factor": True, "email": email}
-        return _signed_in_through_ephemeral(conn, request, response, email, data)
+        audit.record(conn, request, "trusted_device", "code-skipped", email=email)
+        result = _signed_in_through_ephemeral(conn, request, response, email, data)
+        audit.record(conn, request, "login", "success", email=email, detail="ephemeralREST")
+        return result
     user = accounts.authenticate_password(conn, email, body.password)
     if user is None:
         throttle.failed(*keys)
+        audit.record(conn, request, "login", "bad-password", email=email)
         raise ProblemError(401, "bad-login", "Wrong email or password", None)
     throttle.succeeded(keys[0])
+    audit.record(conn, request, "login", "success", user_id=user["id"], detail="password")
     with transaction(conn):
         token = accounts.start_session(conn, user["id"])
     _set_cookie(response, request, token)
@@ -186,8 +208,12 @@ def login_code(body: LoginCode, request: Request, response: Response, conn: Db) 
     email = normalise_email(body.email)
     keys = _throttle_keys(request, email)
     if throttle.blocked(*keys):
+        audit.record(conn, request, "login_code", "throttled", email=email)
         raise ProblemError(429, "too-many-attempts", "Too many attempts", "Wait 15 minutes and try again.")
-    row = conn.execute("SELECT signs_in_with FROM users WHERE email = ?", (email,)).fetchone()
+    row = conn.execute("SELECT signs_in_with, disabled_at FROM users WHERE email = ?", (email,)).fetchone()
+    if row is not None and row["disabled_at"]:
+        audit.record(conn, request, "login_code", "disabled", email=email)
+        raise accounts.disabled_problem()
     allowed = (row is None and accounts.registration_open(conn)) or (
         row is not None and row["signs_in_with"] == "ephemeral"
     )
@@ -201,6 +227,7 @@ def login_code(body: LoginCode, request: Request, response: Response, conn: Db) 
         if problem.slug != "ephemeral-key-rejected":
             raise
         throttle.failed(*keys)
+        audit.record(conn, request, "login_code", "bad-code", email=email)
         raise ProblemError(
             401,
             "bad-code",
@@ -209,6 +236,9 @@ def login_code(body: LoginCode, request: Request, response: Response, conn: Db) 
         ) from None
     throttle.succeeded(keys[0])
     result = _signed_in_through_ephemeral(conn, request, response, email, data)
+    audit.record(conn, request, "login_code", "success", email=email)
+    with transaction(conn):
+        conn.execute("UPDATE users SET ignore_device = 0 WHERE email = ?", (email,))
     if data.get("device_token"):
         app: Settings = request.app.state.settings
         response.set_cookie(
@@ -225,20 +255,139 @@ def login_code(body: LoginCode, request: Request, response: Response, conn: Db) 
 
 @router.post("/register", status_code=202, summary="Create an account through ephemeralREST")
 def register(body: Register, request: Request, conn: Db) -> dict[str, Any]:
-    """Only when the owner allows it. ephemeralREST emails a link to verify the address, then a
-    link to set a password; after that, log in here with that email and password."""
+    """Only when the owner allows it. ephemeralREST emails a link to confirm the address. With a
+    site key (`flow` "here"), the link comes back to /auth/verify here, where they choose a
+    password and are signed in. Otherwise (`flow` "portal") it goes to ephemeralREST's pages,
+    which then email a link to set a password; after that, they log in here."""
     if not accounts.registration_open(conn):
         raise ProblemError(403, "registration-closed", "This install isn't taking new accounts", None)
+    _count_registration(request)
+    email = normalise_email(body.email)
+    data, here = signup.post_with_links(
+        request, conn, "/register", {"name": body.name.strip(), "email": email}, ("verify", "set_password")
+    )
+    signup_deliver(request, conn, data, email, body.name.strip())
+    audit.record(conn, request, "registration", "requested", email=email, detail="here" if here else "portal")
+    return {"email": email, "flow": "here" if here else "portal"}
+
+
+def _count_registration(request: Request, key: str = "register") -> None:
+    """Every registration from an address counts, so it can't be used to send floods of email."""
     throttle: accounts.LoginThrottle = request.app.state.login_throttle
-    ip_key = f"register:{request.client.host if request.client else '-'}"
+    ip_key = f"{key}:{request.client.host if request.client else '-'}"
     if throttle.blocked(ip_key):
         raise ProblemError(429, "too-many-attempts", "Too many attempts", "Wait 15 minutes and try again.")
-    throttle.failed(
-        ip_key
-    )  # counts every registration from this address, so it can't be used to send floods of email
-    email = normalise_email(body.email)
-    _ephemeral(conn, request).post("/register", {"name": body.name.strip(), "email": email})
-    return {"email": email}
+    throttle.failed(ip_key)
+
+
+def signup_deliver(request: Request, conn: Db, data: Any, email: str, name: str) -> None:
+    """Send an email ephemeralREST handed back for this site to deliver (see delivery.py)."""
+    if isinstance(data, dict) and isinstance(data.get("deliver"), dict):
+        from .. import delivery
+
+        delivery.send(request, conn, data["deliver"], email, name)
+
+
+class Verify(Strict):
+    token: Annotated[str, Field(min_length=10, max_length=255)]
+    password: Annotated[str, Field(max_length=200)]
+
+
+EXPIRED = "Ask for a new link: sign up again with the same address, or use Forgot your password."
+
+
+@router.post("/verify", summary="Finish signing up from the emailed link")
+def verify(body: Verify, request: Request, response: Response, conn: Db) -> dict[str, Any]:
+    """From /auth/verify?t=… : confirms the address and sets the ephemeralREST password in one
+    step (ephemeralREST's /register/complete). Then, whichever applies:
+
+    - someone here asked for this account ("I don't have a key"): the key is saved to them,
+      whichever browser this is (`result` "key_saved");
+    - the address already has an account here that signs in through ephemeralREST: it's signed in;
+    - otherwise, if this site takes new accounts, one is made and signed in (`result` "signed_in").
+
+    Confirming the address stands in for the emailed code this first time."""
+    _count_registration(request, "verify")
+    if len(body.password) < 8:
+        raise ProblemError(422, "weak-password", "Choose a longer password", "Use at least 8 characters.")
+    try:
+        with signup.client(request, conn) as eph:
+            data = eph.post("/register/complete", {"token": body.token.strip(), "password": body.password})
+    except ProblemError as problem:
+        if problem.status == 422 and problem.detail and "already set up" in problem.detail:
+            raise ProblemError(
+                409, "already-set-up", "This account is already set up", "Log in instead."
+            ) from None
+        if problem.status == 422:
+            audit.record(conn, request, "registration_complete", "link-expired")
+            raise ProblemError(410, "link-expired", "This link has expired or been used", EXPIRED) from None
+        raise
+    email = normalise_email(str(data.get("identifier") or ""))
+    key = data.get("api_key")
+    if not email or not isinstance(key, str) or not key:
+        raise ProblemError(502, "ephemeral-error", "ephemeralREST didn't return the new account", None)
+    name = str(data.get("name") or email.split("@")[0])
+    signup_deliver(request, conn, data, email, name)
+    identity = {k: data.get(k) for k in ("name", "identifier", "rate_limits")}
+    asked_by = signup.key_request_for(conn, email)
+    if asked_by:
+        audit.record(conn, request, "registration_complete", "completed", user_id=asked_by, email=email)
+        signup.adopt(request, conn, asked_by, key, identity, "add")
+        with transaction(conn):
+            conn.execute("DELETE FROM key_requests WHERE user_id = ?", (asked_by,))
+        return {"result": "key_saved", "email": email}
+    row = conn.execute(
+        "SELECT id, signs_in_with, disabled_at FROM users WHERE email = ?", (email,)
+    ).fetchone()
+    if row is not None and row["disabled_at"]:
+        audit.record(conn, request, "login", "disabled", email=email)
+        raise accounts.disabled_problem()
+    if row is not None and row["signs_in_with"] == "password":
+        audit.record(conn, request, "registration_complete", "completed", user_id=row["id"])
+        # Their login here has its own password: keep it, and give them the key.
+        signup.adopt(request, conn, row["id"], key, identity, "add")
+        return {"result": "key_saved", "email": email}
+    if row is None and not accounts.registration_open(conn):
+        raise ProblemError(
+            403,
+            "registration-closed",
+            "Your account is ready, but this site isn't taking new accounts",
+            "Ask the site's owner to add you.",
+        )
+    result = _signed_in_through_ephemeral(conn, request, response, email, data)
+    audit.record(conn, request, "registration_complete", "completed", email=email)  # the account exists now
+    return {"result": "signed_in", **result}
+
+
+class EphemeralPassword(Strict):
+    token: Annotated[str, Field(min_length=10, max_length=255)]
+    password: Annotated[str, Field(max_length=200)]
+
+
+@router.post("/ephemeral-password", status_code=204, summary="Choose a new password from the emailed link")
+def ephemeral_password(body: EphemeralPassword, request: Request, conn: Db) -> None:
+    """From /auth/set-password?t=… : for people who sign in through ephemeralREST and asked to
+    reset their password. Logging in afterwards renews their key here."""
+    _count_registration(request, "reset")
+    if len(body.password) < 8:
+        raise ProblemError(422, "weak-password", "Choose a longer password", "Use at least 8 characters.")
+    try:
+        with signup.client(request, conn) as eph:
+            data = eph.post("/password/set", {"token": body.token.strip(), "new_password": body.password})
+    except ProblemError as problem:
+        if problem.status == 422:
+            audit.record(conn, request, "password_reset", "link-expired")
+            raise ProblemError(410, "link-expired", "This link has expired or been used", ASK_AGAIN) from None
+        raise
+    who = data.get("identifier") if isinstance(data, dict) else None
+    audit.record(
+        conn,
+        request,
+        "password_reset",
+        "completed",
+        email=normalise_email(str(who)) if who else "",
+        detail="ephemeralREST",
+    )
 
 
 @router.put("/registration", summary="Let new people create accounts, or not")
@@ -290,11 +439,12 @@ def _signed_in_through_ephemeral(
 
 @router.post("/logout", status_code=204, summary="Log out")
 def logout(
-    request: Request, response: Response, conn: Db, _: UserPrincipal, as_session: SessionCookie = None
+    request: Request, response: Response, conn: Db, person: UserPrincipal, as_session: SessionCookie = None
 ) -> None:
     if as_session:
         with transaction(conn):
             accounts.end_session(conn, as_session)
+    audit.record(conn, request, "logout", "by-person", user_id=person.id)
     response.delete_cookie(accounts.SESSION_COOKIE, path="/")
 
 
@@ -306,7 +456,7 @@ def me(conn: Db, person: UserPrincipal) -> dict[str, Any]:
 
 @router.post("/password", status_code=204, summary="Change your password")
 def change_password(
-    body: PasswordChange, conn: Db, person: UserPrincipal, as_session: SessionCookie = None
+    body: PasswordChange, request: Request, conn: Db, person: UserPrincipal, as_session: SessionCookie = None
 ) -> None:
     """Also logs out every other session of this account."""
     row = conn.execute(
@@ -320,6 +470,7 @@ def change_password(
             "Change it there; it's the one you log in with here.",
         )
     if not accounts.check_password(body.current_password, row["password_hash"]):
+        audit.record(conn, request, "password_changed", "bad-password", user_id=person.id)
         raise ProblemError(422, "bad-password", "Current password is wrong", None)
     problem = accounts.password_problem(body.new_password, row["email"])
     if problem:
@@ -330,6 +481,8 @@ def change_password(
             (accounts.hash_password(body.new_password), person.id),
         )
         accounts.end_other_sessions(conn, person.id, as_session)
+    audit.record(conn, request, "password_changed", "completed", user_id=person.id)
+    _tell(conn, request, person.id, "password_changed", {"date": now()[:10]})
 
 
 # ---------------------------------------------------------------------------
@@ -354,7 +507,8 @@ def request_reset(body: ResetRequest, request: Request, conn: Db) -> dict[str, A
     so it can't be used to find out who has one. Accounts that sign in through ephemeralREST
     reset their password there, so they get an email saying so instead of a link."""
     settings: Settings = request.app.state.settings
-    if not mail.configured(conn):
+    here = signup.links_ready(request, conn)
+    if not mail.configured(conn) and not here:
         raise ProblemError(
             409,
             "email-not-set-up",
@@ -363,36 +517,35 @@ def request_reset(body: ResetRequest, request: Request, conn: Db) -> dict[str, A
         )
     email = normalise_email(str(body.email))
     row = conn.execute("SELECT id, name, signs_in_with FROM users WHERE email = ?", (email,)).fetchone()
+    audit.record(conn, request, "password_reset", "requested", email=email)
     if row is not None:
         try:
-            if row["signs_in_with"] == "ephemeral":
+            if row["signs_in_with"] == "ephemeral" and here:
+                # ephemeralREST keeps the password: its reset email links back here.
                 with transaction(conn):
                     allowed = accounts.start_reset(conn, row["id"]) is not None
                 if allowed:
-                    mail.send(
-                        conn,
-                        settings,
-                        email,
-                        "AstrologyStudio: your password",
-                        f"Hello {row['name']},\n\nSomeone (probably you) asked to reset the password for "
-                        f"{email} at {settings.base_url}.\n\nYour account signs in through ephemeralREST, "
-                        "so its password is changed there, not here.\n\nIf this wasn't you, ignore this "
-                        "message.\n",
+                    data, _ = signup.post_with_links(
+                        request, conn, "/password/forgot", {"email": email}, ("set_password",)
                     )
-            else:
+                    signup_deliver(request, conn, data, email, row["name"])
+            elif row["signs_in_with"] == "ephemeral" and mail.configured(conn):
+                with transaction(conn):
+                    allowed = accounts.start_reset(conn, row["id"]) is not None
+                if allowed:
+                    email_design.send(conn, settings, "password_elsewhere", email, {"name": row["name"]})
+            elif row["signs_in_with"] != "ephemeral" and mail.configured(conn):
                 with transaction(conn):
                     token = accounts.start_reset(conn, row["id"])
                 if token:
                     link = f"{settings.base_url}/reset-password?token={token}"
-                    mail.send(
+                    expires = (datetime.now(UTC) + accounts.RESET_LIFETIME).strftime("%d %b %Y, %H:%M UTC")
+                    email_design.send(
                         conn,
                         settings,
+                        "password_reset",
                         email,
-                        "AstrologyStudio: set a new password",
-                        f"Hello {row['name']},\n\nSomeone (probably you) asked to reset the password for "
-                        f"{email} at {settings.base_url}.\n\nTo choose a new one, open this link within "
-                        f"the hour:\n\n{link}\n\nIt works once. If this wasn't you, ignore this message: "
-                        "your password stays as it is.\n",
+                        {"name": row["name"], "link": link, "expires": expires},
                     )
         except ProblemError:
             # Not telling the person asking: that would show the account exists. The owner sees
@@ -415,7 +568,7 @@ def check_reset(token: str, conn: Db) -> dict[str, Any]:
 
 
 @router.post("/password-reset/finish", status_code=204, summary="Set a new password from a reset link")
-def finish_reset(body: ResetFinish, conn: Db) -> None:
+def finish_reset(body: ResetFinish, request: Request, conn: Db) -> None:
     """Logs the account out everywhere; log in again with the new password."""
     row = accounts.reset_user(conn, body.token)
     if row is None:
@@ -430,3 +583,20 @@ def finish_reset(body: ResetFinish, conn: Db) -> None:
         raise ProblemError(422, "weak-password", "Choose a stronger password", problem)
     with transaction(conn):
         accounts.finish_reset(conn, body.token, row["id"], body.new_password)
+    audit.record(conn, request, "password_reset", "completed", user_id=row["id"])
+    _tell(conn, request, row["id"], "password_changed", {"date": now()[:10]})
+
+
+def _tell(conn: Db, request: Request, user_id: str, key: str, values: dict[str, str]) -> None:
+    """A notice by email, when email is set up. A failure doesn't undo what's been done."""
+    if not mail.configured(conn):
+        return
+    row = conn.execute("SELECT email, name FROM users WHERE id = ?", (user_id,)).fetchone()
+    if row is None:
+        return
+    try:
+        email_design.send(
+            conn, request.app.state.settings, key, row["email"], {"name": row["name"], **values}
+        )
+    except ProblemError:
+        log.warning("A %s email couldn't be sent", key, exc_info=True)

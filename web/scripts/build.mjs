@@ -33,6 +33,7 @@ const options = {
 
 const STATIC = [
   ['index.html', 'dist/index.html'],
+  ['theme-boot.js', 'dist/theme-boot.js'],
   ['src/styles.css', 'dist/styles.css'],
   // The symbol font (see fonts/make-glyph-font.py) and its licence, which must travel with it.
   ['fonts/StudioAstroGlyphs.woff2', 'dist/fonts/StudioAstroGlyphs.woff2'],

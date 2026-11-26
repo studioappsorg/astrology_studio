@@ -246,7 +246,8 @@ def test_midpoint_sort_and_search(page: Page) -> None:
     assert dials == sorted(dials, key=lambda t: tuple(int(x) for x in re.findall(r"\d+", t)))
     rows.nth(10).click()
     p.wait_for_function(
-        "document.querySelectorAll('.midpoint-panel .sort-table tbody tr')[10].classList.contains('is-focus')"
+        "() => document.querySelectorAll('.midpoint-panel .sort-table tbody tr')[10]"
+        ".classList.contains('is-focus')"
     )  # the pointer moved there
     # Closest to exact: midpoints on a factor, tightest first.
     p.get_by_role("button", name="Closest to exact").click()
@@ -453,7 +454,7 @@ def test_aspects_in_your_view(page: Page) -> None:
     p.get_by_role("button", name="Theme colour").wait_for()
     p.get_by_label("Use Trine").uncheck()
     p.wait_for_function(
-        "fetch('/api/v1/preferences/calculation').then(r => r.json())"
+        "() => fetch('/api/v1/preferences/calculation').then(r => r.json())"
         ".then(c => !c.profiles.find(x => x.id === c.active).aspects.trine.on)"
     )
     page.go(f"/charts/{page.chart_id()}")
@@ -493,14 +494,14 @@ def test_views_of_a_chart(page: Page) -> None:
     # The chart type picker changes only the view on screen.
     p.get_by_label("Chart type").select_option("hellenistic")
     labels = "[...document.querySelectorAll('.view-chip')].map(c => c.textContent).join()"
-    p.wait_for_function(f"{labels} === 'Hellenistic,Dial 90°'")
+    p.wait_for_function(f"() => {labels} === 'Hellenistic,Dial 90°'")
     chips.filter(has_text="Dial 90°").click()
     p.locator(".mp-tree").first.wait_for()
     # A view with another chart as chart 2.
     p.get_by_role("button", name="Add a view").click()
     p.get_by_role("menuitem", name="With another chart…").click()
     p.locator(".slot-list button", has_text="John Smith").first.click()
-    p.wait_for_function("document.querySelectorAll('.view-chip').length === 3")
+    p.wait_for_function("() => document.querySelectorAll('.view-chip').length === 3")
     p.locator(".view-chip.is-active", has_text="John Smith").wait_for()
     # Views come back after a reload, on the view last shown.
     p.wait_for_timeout(900)  # saved a moment after each change
@@ -513,7 +514,7 @@ def test_views_of_a_chart(page: Page) -> None:
     # Close a view from its right-click menu.
     chips.filter(has_text="Hellenistic").click(button="right")
     p.get_by_role("menuitem", name="Close view").click()
-    p.wait_for_function("document.querySelectorAll('.view-chip').length === 2")
+    p.wait_for_function("() => document.querySelectorAll('.view-chip').length === 2")
     # Or with its close button: with one view left the row goes away.
     p.get_by_role("button", name="Close view Dial 90° + John Smith").click()
     row.wait_for(state="detached")
@@ -535,7 +536,7 @@ def test_presets_as_sets_of_views(page: Page) -> None:
     p.locator("svg.dial").wait_for()
     p.get_by_role("button", name="Add a view").click()
     p.get_by_role("menuitem", name="With transits now").click()
-    p.wait_for_function("document.querySelectorAll('.view-chip').length === 3")
+    p.wait_for_function("() => document.querySelectorAll('.view-chip').length === 3")
     # The transits chart is worked out after the view appears: wait for it before saving.
     p.locator(".view-chip", has_text="Transits").wait_for()
     p.wait_for_timeout(300)
@@ -556,12 +557,12 @@ def test_presets_as_sets_of_views(page: Page) -> None:
     john = next(c["id"] for c in page.api("GET", "/charts")["data"] if c["name"] == "John Smith")
     page.api("PATCH", "/preferences/remembered", {"values": {"preset-apply-mode": ""}})
     page.go(f"/charts/{john}")
-    p.wait_for_function("document.querySelectorAll('.view-chip').length === 3")
+    p.wait_for_function("() => document.querySelectorAll('.view-chip').length === 3")
     assert p.locator(".view-chip").last.text_content() == "Dial 90° + Transits"
     # A preset with several views on a chart with several asks first.
     preset.select_option(label="Full reading · 3 views")
     p.get_by_role("button", name="Add after them").click()
-    p.wait_for_function("document.querySelectorAll('.view-chip').length === 6")
+    p.wait_for_function("() => document.querySelectorAll('.view-chip').length === 6")
     # "Ask each time": the chart dialog opens for chart 2.
     page.api(
         "POST",
@@ -569,7 +570,7 @@ def test_presets_as_sets_of_views(page: Page) -> None:
         {"name": "Relationship", "views": [{"display": "wheel", "partner": {"role": "ask"}}]},
     )
     page.go(f"/charts/{page.chart_id()}")
-    p.wait_for_function("document.querySelectorAll('.view-chip').length === 3")
+    p.wait_for_function("() => document.querySelectorAll('.view-chip').length === 3")
     p.locator(".view-chip").first.click()
     preset.select_option(label="Relationship")
     p.locator(".slot-list button", has_text="John Smith").first.click()
@@ -616,7 +617,7 @@ def test_presets_tab(page: Page) -> None:
     copy.wait_for()
     copy.get_by_role("button", name="Move Tab test copy up").click()
     p.wait_for_function(
-        "[...document.querySelectorAll('.preset-row strong')].map(s => s.textContent)"
+        "() => [...document.querySelectorAll('.preset-row strong')].map(s => s.textContent)"
         ".indexOf('Tab test copy') < [...document.querySelectorAll('.preset-row strong')]"
         ".map(s => s.textContent).indexOf('Tab test')"
     )
@@ -843,7 +844,9 @@ def test_forgot_password(page: Page, browser: Any, server: str, monkeypatch: pyt
         p.locator("#forgot-email").fill("ann@example.com")
         p.get_by_role("button", name="Email me a link").click()
         p.get_by_role("heading", name="Check your email").wait_for()
-        link = re.search(r"(/reset-password\?token=\S+)", FakeSMTP.sent[-1].get_content())
+        link = re.search(
+            r"(/reset-password\?token=\S+)", FakeSMTP.sent[-1].get_body(("plain",)).get_content()
+        )
         assert link
         p.goto(server + link.group(1))
         p.get_by_role("heading", name="Choose a new password").wait_for()

@@ -19,7 +19,7 @@
 
 import { useEffect, useLayoutEffect, useRef, useState } from 'preact/hooks';
 import { api, type ChartDetail } from '../api';
-import { HOUSE_SYSTEM_NAMES, houseOf, offsetText, signed, SIGN_GLYPHS, textGlyph, zodiac } from '../astro';
+import { HOUSE_SYSTEM_NAMES, houseOf, offsetText, signed, SIGN_GLYPHS, textGlyph, zodiac, zodiacText } from '../astro';
 import { balance } from '../overview';
 import { BalanceTable, signatureText, useOverviewChoices } from './OverviewReport';
 import { AspectGrid } from '../components/AspectGrid';
@@ -137,7 +137,7 @@ function SheetBody({ chart }: { chart: ChartDetail }) {
     <p class="muted">
       {chart.datetime_utc.replace('T', ' ').slice(0, 16)} UT · {offsetText(chart.location.utc_offset_seconds)}
       {chart.location.latitude !== null && chart.location.longitude !== null && ` · ${signed(chart.location.latitude)}, ${signed(chart.location.longitude, 'E', 'W')}`}
-      {' · '}{HOUSE_SYSTEM_NAMES[chart.house_system ?? ''] ?? 'no'} houses · {chart.profile.zodiac}
+      {' · '}{HOUSE_SYSTEM_NAMES[chart.house_system ?? ''] ?? 'no'} houses · {zodiacText(chart.zodiac, chart.sidereal_pending) || 'Tropical'}
     </p>
   );
   const head = (

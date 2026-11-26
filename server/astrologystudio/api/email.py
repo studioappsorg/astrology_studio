@@ -20,7 +20,7 @@ from typing import Annotated, Any
 from fastapi import APIRouter, Request, Response
 from pydantic import Field, field_validator
 
-from .. import mail
+from .. import email_design, mail
 from ..db import transaction
 from ..deps import Db, OwnerPrincipal
 from ..errors import ProblemError
@@ -109,13 +109,28 @@ def test_email(body: TestMessage, request: Request, conn: Db, person: OwnerPrinc
         to = row["email"] if row else ""
     if not to:
         raise ProblemError(422, "bad-address", "Enter an address to send the test to", None)
+    settings = request.app.state.settings
+    brand = email_design.branding(conn)
+    logo = email_design.logo_url(settings) if email_design.logo_data_url(conn) else None
+    rendered = email_design.render_parts(
+        "{site}: test message",
+        "This is a test message from {site}.\n\nIf you can read it, email is set up: anything the app sends"
+        " will come from this server and address, with your email design.",
+        {"site": brand["sender_name"] or "AstrologyStudio"},
+        brand,
+        logo,
+        settings.base_url,
+    )
     mail.send(
         conn,
-        request.app.state.settings,
+        settings,
         to,
-        "AstrologyStudio: test message",
-        "This is a test message from AstrologyStudio.\n\n"
-        "If you can read it, email is set up: anything the app sends will come from this server "
-        "and address.\n",
+        rendered.subject,
+        rendered.text,
+        rendered.html,
+        reply_to=brand["reply_to"] or None,
+        from_name=brand["sender_name"] or None,
     )
+    with transaction(conn):
+        mail.mark_tested(conn)
     return {"sent": True, "to": to}

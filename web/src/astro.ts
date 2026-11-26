@@ -55,6 +55,20 @@ export function zodiacLong(lon: number): string {
   return `${dm(l % 30)} ${SIGNS[signIndex(l)]}`;
 }
 
+const AYANAMSA_NAMES: Record<string, string> = {
+  lahiri: 'Lahiri', krishnamurti: 'Krishnamurti (KP)', fagan_bradley: 'Fagan-Bradley', raman: 'B.V. Raman',
+};
+
+/** How a chart's zodiac reads: '' for tropical (the usual), "Sidereal, Lahiri 24°14'" for
+ * sidereal, and a warning when sidereal was asked for but couldn't be done. */
+export function zodiacText(used: { type: string; ayanamsa: string | null; value?: number | null } | undefined,
+                           pending = false): string {
+  if (pending) return 'Tropical: sidereal needs a newer ephemeralREST';
+  if (!used || used.type !== 'sidereal') return '';
+  const name = AYANAMSA_NAMES[used.ayanamsa ?? ''] ?? used.ayanamsa ?? '';
+  return `Sidereal, ${name}${typeof used.value === 'number' ? ` ${dm(used.value)}` : ''}`;
+}
+
 /** A plain longitude 0–360 in degrees and minutes: 354°06' */
 export function degrees(lon: number): string {
   return dm(norm(lon));

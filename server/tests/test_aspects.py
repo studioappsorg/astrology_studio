@@ -83,14 +83,15 @@ def test_profiles(client: TestClient, owner: dict[str, str]) -> None:
     assert client.delete(f"/api/v1/preferences/profiles/{new['id']}", headers=owner).status_code == 409
 
 
-def test_chart_carries_aspects_and_sidereal_stub(client: TestClient, ready: dict[str, str]) -> None:
+def test_chart_carries_aspects_and_sidereal(client: TestClient, ready: dict[str, str]) -> None:
     client.patch("/api/v1/preferences/calculation", json={"zodiac": "sidereal"}, headers=ready)
     chart = client.post(
         "/api/v1/charts",
         json={"name": "A", "date": "2000-01-01", "time": "00:00", "place": "London"},
         headers=ready,
     ).json()
-    assert chart["sidereal_pending"] is True
+    assert chart["sidereal_pending"] is False
+    assert chart["zodiac"]["type"] == "sidereal"
     assert chart["profile"]["zodiac"] == "sidereal"
     assert isinstance(chart["aspects"], list) and chart["aspects"]
     assert {"a", "b", "aspect", "orb", "applying"} <= set(chart["aspects"][0])

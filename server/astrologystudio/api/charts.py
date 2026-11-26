@@ -263,7 +263,7 @@ def create_chart(body: ChartCreate, conn: Db, eph: Eph, person: UserPrincipal) -
 @router.post("/import", status_code=201, summary="Add a chart someone shared with you")
 def import_chart(body: ChartImport, conn: Db, eph: Eph, person: UserPrincipal) -> dict[str, Any]:
     chart_id = charts.shared_id(body.chart)
-    chart = charts.normalise(eph.get(f"/chart/{chart_id}"), chart_id)
+    chart = charts.normalise(eph.get(f"/chart/{chart_id}"), chart_id, _sidereal(conn, person.id))
     local = chart.datetime_local or chart.datetime_utc
     when = local[:10] if len(local) >= 10 else None
     clock = local[11:16] if len(local) >= 16 else None
@@ -327,6 +327,12 @@ def get_derived(
             raise
         return _transits(conn, eph, person.id, derived_id, entry, mode)
     return _derived(data, derived_id, prefs.active_profile(conn, person.id), mode)
+
+
+def _sidereal(conn: Db, user_id: str) -> str | None:
+    """The active profile's ayanamsa if it's sidereal, else None."""
+    found: str | None = _zodiac(conn, user_id).get(zodiac.SIDEREAL)
+    return found
 
 
 def _transits(
@@ -464,7 +470,9 @@ def _derived(
     data: dict[str, Any], derived_id: str, profile: dict[str, Any], mode: str = ""
 ) -> dict[str, Any]:
     """A derived chart in the same shape as the rest, plus what it was worked out from."""
-    chart = charts.normalise(data, derived_id)
+    chart = charts.normalise(
+        data, derived_id, zodiac.selection(profile["zodiac"], profile["ayanamsa"]).get(zodiac.SIDEREAL)
+    )
     chart_type = str(data.get("chart_type") or "")
     reference = (
         data.get("reference_date")
@@ -516,7 +524,7 @@ def moving_chart(
     chart = charts.load(eph, chart_id, _system(conn, person.id, chart_id), _zodiac(conn, person.id))
     natal = moving.parse_utc(chart.datetime_utc)
     lat, lon = chart.location.get("latitude"), chart.location.get("longitude")
-    source = Ephemeris(eph, conn)
+    source = Ephemeris(eph, conn, _sidereal(conn, person.id))
     settings = moving.tight(profile["aspects"], profile["moving_orb"])
     targets = moving.fixed(chart.points)
     result: dict[str, Any] = {}
@@ -736,6 +744,13 @@ def composite(
         points=relationships.composite_points(first.points, second.points),
         helio=relationships.composite_points(first.helio, second.helio),
     )
+    if (
+        first.zodiac == second.zodiac == "sidereal"
+        and first.ayanamsa_value is not None
+        and second.ayanamsa_value is not None
+    ):
+        chart.zodiac, chart.ayanamsa = "sidereal", first.ayanamsa
+        chart.ayanamsa_value = (first.ayanamsa_value + second.ayanamsa_value) / 2.0
     return {**chart.as_dict(), **analysis(chart, prefs.active_profile(conn, person.id), mode)}
 
 
@@ -795,7 +810,7 @@ def davison(
             ) from None
 
     data = eph.memo(memo, 3600.0, work)
-    chart = charts.Chart(**data)
+    chart = charts.Chart.restore(data)
     return {**chart.as_dict(), **analysis(chart, profile, mode)}
 
 
@@ -829,7 +844,7 @@ def chart_return(
     else:
         path = f"/chart/{chart_id}/solar-return"
     data = eph.post(path, request)
-    chart = charts.normalise(data)
+    chart = charts.normalise(data, sidereal=_sidereal(conn, person.id))
     chart.name = chart.name or ("Solar return" if body.kind == "solar" else "Lunar return")
     return {
         **chart.as_dict(),
@@ -877,7 +892,7 @@ def chart_events(
         if v.get("on") and (aspects.BY_KEY[k].major or not majors_only)
     ]
     natal = moving.parse_utc(chart.datetime_utc)
-    source = Ephemeris(eph, conn)
+    source = Ephemeris(eph, conn, _sidereal(conn, person.id))
 
     def at(moment: datetime) -> dict[str, dict[str, Any]]:
         if layer == "transits":
@@ -953,6 +968,10 @@ def _harmonic_chart(
         points=points,
         helio={},
     )
+    if chart.zodiac == "sidereal" and chart.ayanamsa_value is not None:
+        # The ayanamsa is multiplied with everything else, so the Aries Point lands at -n times it.
+        result.zodiac, result.ayanamsa = "sidereal", chart.ayanamsa
+        result.ayanamsa_value = (chart.ayanamsa_value * n) % 360.0
     return {**result.as_dict(), **analysis(result, profile, mode), "harmonic": n}
 
 
@@ -1065,8 +1084,10 @@ def add_points(chart: charts.Chart, profile: dict[str, Any], mode: str = "") -> 
         if mode == "hellenistic":
             chart.houses = hellenistic.whole_sign_cusps(lons["asc"])
             chart.house_system = "whole_sign"
+    # 0° tropical Aries. In a sidereal chart that's the ayanamsa before 0° sidereal Aries.
+    aries = (-chart.ayanamsa_value) % 360.0 if chart.zodiac == "sidereal" and chart.ayanamsa_value else 0.0
     chart.points["aries_point"] = {
-        "lon": 0.0,
+        "lon": aries,
         "lat": 0.0,
         "speed": None,
         "decl": None,
@@ -1097,7 +1118,8 @@ def analysis(chart: charts.Chart, profile: dict[str, Any], mode: str = "") -> di
         "profile": {
             k: profile[k] for k in ("id", "name", "house_system", "zodiac", "ayanamsa", "lot_formula")
         },
-        "sidereal_pending": profile["zodiac"] == "sidereal" and not zodiac.SIDEREAL_SUPPORTED,
+        # Sidereal was asked for but this chart couldn't be (an ephemeralREST without ayanamsas).
+        "sidereal_pending": profile["zodiac"] == "sidereal" and chart.zodiac != "sidereal",
         "mode": mode or "standard",
         "hellenistic": hellenistic.analyse(chart.points) if mode == "hellenistic" else None,
     }
@@ -1105,4 +1127,4 @@ def analysis(chart: charts.Chart, profile: dict[str, Any], mode: str = "") -> di
 
 def _zodiac(conn: Db, user_id: str) -> dict[str, Any]:
     profile = prefs.active_profile(conn, user_id)
-    return zodiac.request_fields(profile["zodiac"], profile["ayanamsa"])
+    return zodiac.selection(profile["zodiac"], profile["ayanamsa"])

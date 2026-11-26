@@ -52,20 +52,30 @@ def _free_port() -> int:
 
 
 @pytest.fixture(scope="session")
-def server(tmp_path_factory: pytest.TempPathFactory) -> Iterator[str]:
+def fake_ephemeral() -> FakeEphemeral:
+    """The stand-in ephemeralREST the browser tests' server talks to (its outbox has the emails)."""
+    return FakeEphemeral()
+
+
+@pytest.fixture(scope="session")
+def server(tmp_path_factory: pytest.TempPathFactory, fake_ephemeral: FakeEphemeral) -> Iterator[str]:
     if not (WEB / "index.html").exists():
         pytest.skip("Build the web app first (npm run build in web/)")
+    port = _free_port()
     settings = Settings(
-        data_dir=tmp_path_factory.mktemp("data"), ephemeral_url="http://ephemeral.test", web_dir=WEB
+        data_dir=tmp_path_factory.mktemp("data"),
+        ephemeral_url="http://ephemeral.test",
+        web_dir=WEB,
+        # localhost, so a site key may link sign-up emails back here
+        base_url=f"http://localhost:{port}",
     )
     app = create_app(settings)
-    app.state.ephemeral_transport = FakeEphemeral().transport
-    port = _free_port()
+    app.state.ephemeral_transport = fake_ephemeral.transport
     config = uvicorn.Config(app, host="127.0.0.1", port=port, log_level="warning")
     running = uvicorn.Server(config)
     thread = threading.Thread(target=running.run, daemon=True)
     thread.start()
-    base = f"http://127.0.0.1:{port}"
+    base = f"http://localhost:{port}"
     for _ in range(100):
         try:
             httpx.get(f"{base}/api/v1/health", timeout=1)

@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 from datetime import date, time
 from typing import Any
 
+from .astro import zodiac
 from .db import now
 from .ephemeral import Ephemeral
 from .errors import ProblemError
@@ -143,6 +144,12 @@ class Chart:
     houses: list[float] | None
     points: dict[str, dict[str, Any]] = field(default_factory=dict)
     helio: dict[str, dict[str, Any]] = field(default_factory=dict)
+    ayanamsas: dict[str, float] | None = None
+    """ephemeralREST's ayanamsas for this chart's moment (None from an older ephemeralREST)."""
+    zodiac: str = "tropical"
+    ayanamsa: str | None = None
+    """In a sidereal chart, which ayanamsa, and (`ayanamsa_value`) how many degrees it took off."""
+    ayanamsa_value: float | None = None
 
     def as_dict(self) -> dict[str, Any]:
         return {
@@ -155,7 +162,58 @@ class Chart:
             "houses": self.houses,
             "points": self.points,
             "helio": self.helio,
+            "zodiac": {"type": self.zodiac, "ayanamsa": self.ayanamsa, "value": self.ayanamsa_value},
         }
+
+    @classmethod
+    def restore(cls, data: dict[str, Any]) -> Chart:
+        """A Chart from its as_dict() (kept in a cache), including one kept before zodiacs."""
+        fields = {
+            k: data[k]
+            for k in (
+                "id",
+                "name",
+                "datetime_utc",
+                "datetime_local",
+                "location",
+                "house_system",
+                "houses",
+                "points",
+                "helio",
+            )
+            if k in data
+        }
+        chart = cls(**fields)
+        kind = data.get("zodiac")
+        if isinstance(kind, dict) and kind.get("type") == "sidereal":
+            chart.zodiac, chart.ayanamsa, chart.ayanamsa_value = (
+                "sidereal",
+                kind.get("ayanamsa"),
+                kind.get("value"),
+            )
+        return chart
+
+    def to_sidereal(self, key: str | None) -> Chart:
+        """Turn this (tropical) chart sidereal with ayanamsa `key`, in place. Nothing happens if
+        `key` is None, the chart is already sidereal, or ephemeralREST sent no ayanamsas."""
+        amount = zodiac.value(self.ayanamsas, key)
+        if amount is None or self.zodiac == "sidereal":
+            return self
+        zodiac.shift(self.points, amount)
+        zodiac.shift(self.helio, amount)
+        if self.houses is not None:
+            if self.house_system == "whole_sign" and "asc" in self.points:
+                self.houses = zodiac.whole_sign_cusps(self.points["asc"]["lon"])
+            else:
+                self.houses = [(c - amount) % 360.0 for c in self.houses]
+        self.zodiac, self.ayanamsa, self.ayanamsa_value = "sidereal", key, amount
+        return self
+
+
+def split_zodiac(extra: dict[str, Any] | None) -> tuple[dict[str, Any], str | None]:
+    """(fields for ephemeralREST, sidereal ayanamsa or None) from a chart request's `extra`."""
+    fields = dict(extra or {})
+    return fields, fields.pop(zodiac.SIDEREAL, None)
 
 
 def _point(raw: Any) -> dict[str, Any] | None:
@@ -178,8 +236,9 @@ def _angle(value: Any) -> dict[str, Any] | None:
     return {"lon": float(value) % 360.0, "lat": 0.0, "speed": None, "decl": None, "ra": None, "retro": False}
 
 
-def normalise(data: dict[str, Any], chart_id: str | None = None) -> Chart:
-    """Turn any ephemeralREST chart response (main or derived) into a Chart."""
+def normalise(data: dict[str, Any], chart_id: str | None = None, sidereal: str | None = None) -> Chart:
+    """Turn any ephemeralREST chart response (main or derived) into a Chart, sidereal with
+    ayanamsa `sidereal` if it's given (and ephemeralREST sent the ayanamsas)."""
     positions = data.get("planetary_positions") or {}
     if "geocentric" in positions or "heliocentric" in positions:
         geo_raw = positions.get("geocentric") or {}
@@ -223,7 +282,15 @@ def normalise(data: dict[str, Any], chart_id: str | None = None) -> Chart:
         houses=houses,
         points=points,
         helio=helio,
-    )
+        ayanamsas=_ayanamsas(data.get("ayanamsa")),
+    ).to_sidereal(sidereal)
+
+
+def _ayanamsas(raw: Any) -> dict[str, float] | None:
+    if not isinstance(raw, dict):
+        return None
+    found = {k: float(v) for k, v in raw.items() if isinstance(v, int | float)}
+    return found or None
 
 
 # ---------------------------------------------------------------------------
@@ -237,9 +304,10 @@ def calculate(
     recalc_id: str | None = None,
     extra: dict[str, Any] | None = None,
 ) -> Chart:
-    """`extra` carries further /calculate fields, such as the zodiac (see astro.zodiac)."""
+    """`extra` carries further /calculate fields, and the zodiac (see astro.zodiac)."""
+    fields, sidereal = split_zodiac(extra)
     body: dict[str, Any] = {
-        **(extra or {}),
+        **fields,
         "chart_name": birth.name,
         "datetime": birth.datetime_text,
         "location": birth.place,
@@ -248,7 +316,7 @@ def calculate(
     }
     if recalc_id:
         body.update(recalc=True, chart_id=recalc_id)
-    return normalise(eph.post("/calculate", body))
+    return normalise(eph.post("/calculate", body), sidereal=sidereal)
 
 
 def at_moment(
@@ -269,13 +337,14 @@ def at_moment(
     moment = utc_iso.replace("Z", "+00:00")
     if not re.search(r"[+-]\d\d:\d\d$", moment):
         moment += "+00:00"
+    fields, sidereal = split_zodiac(extra)
     wheres = [w for w in (place.strip(), f"{lat:.6f}, {lon:.6f}" if coordinates else "") if w]
     for i, where in enumerate(wheres):
         try:
             data = eph.post(
                 "/calculate",
                 {
-                    **(extra or {}),
+                    **fields,
                     "chart_name": name,
                     "datetime": moment,
                     "location": where,
@@ -287,7 +356,7 @@ def at_moment(
             if error.slug != "ephemeral-rejected" or i == len(wheres) - 1:
                 raise
             continue
-        return normalise(data)
+        return normalise(data, sidereal=sidereal)
     raise AssertionError("unreachable")
 
 
@@ -296,12 +365,13 @@ def load(eph: Ephemeral, chart_id: str, house_system: str, extra: dict[str, Any]
     from the chart's exact moment and place, without touching the saved chart. If ephemeralREST
     can't do that (it can't find the place), the chart comes back in its own house system
     rather than not at all."""
+    fields, sidereal = split_zodiac(extra)
     chart = normalise(eph.get(f"/chart/{chart_id}"), chart_id)
-    if chart.house_system == house_system and chart.houses is not None and not extra:
-        return chart
+    if chart.house_system == house_system and chart.houses is not None and not fields:
+        return chart.to_sidereal(sidereal)
     lat, lon = chart.location.get("latitude"), chart.location.get("longitude")
     if not chart.datetime_utc or not isinstance(lat, int | float) or not isinstance(lon, int | float):
-        return chart
+        return chart.to_sidereal(sidereal)
     try:
         redone = at_moment(
             eph,
@@ -316,7 +386,7 @@ def load(eph: Ephemeral, chart_id: str, house_system: str, extra: dict[str, Any]
     except ProblemError as error:
         if error.slug != "ephemeral-rejected":
             raise
-        return chart
+        return chart.to_sidereal(sidereal)
     redone.id = chart.id
     redone.datetime_local = chart.datetime_local
     redone.location = chart.location

@@ -61,6 +61,7 @@ def public(conn: sqlite3.Connection) -> dict[str, Any]:
         "from_name": found.get("from_name", ""),
         "reply_to": found.get("reply_to", ""),
         "updated_at": found.get("updated_at"),
+        "tested": tested(conn),
     }
 
 
@@ -71,6 +72,8 @@ def save(conn: sqlite3.Connection, settings: Settings, values: dict[str, Any], p
     if password is not None:
         kept = secretbox.encrypt(settings, password) if password else ""
     value = {**values, "password": kept, "updated_at": now()}
+    if {k: current.get(k) for k in values} != values or kept != current.get("password", ""):
+        conn.execute("DELETE FROM settings WHERE key = ?", (TESTED_KEY,))
     conn.execute(
         "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)"
         " ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
@@ -79,7 +82,23 @@ def save(conn: sqlite3.Connection, settings: Settings, values: dict[str, Any], p
 
 
 def forget(conn: sqlite3.Connection) -> None:
-    conn.execute("DELETE FROM settings WHERE key = ?", (SETTING_KEY,))
+    conn.execute("DELETE FROM settings WHERE key IN (?, ?)", (SETTING_KEY, TESTED_KEY))
+
+
+TESTED_KEY = "smtp_tested_at"
+"""When a test message last went out with the current settings (cleared when they change)."""
+
+
+def tested(conn: sqlite3.Connection) -> bool:
+    return conn.execute("SELECT 1 FROM settings WHERE key = ?", (TESTED_KEY,)).fetchone() is not None
+
+
+def mark_tested(conn: sqlite3.Connection) -> None:
+    conn.execute(
+        "INSERT INTO settings (key, value, updated_at) VALUES (?, ?, ?)"
+        " ON CONFLICT (key) DO UPDATE SET value = excluded.value, updated_at = excluded.updated_at",
+        (TESTED_KEY, json.dumps(now()), now()),
+    )
 
 
 def configured(conn: sqlite3.Connection) -> bool:
@@ -95,6 +114,7 @@ def send(
     html: str | None = None,
     reply_to: str | None = None,
     attachments: list[tuple[str, bytes, str]] | None = None,
+    from_name: str | None = None,
 ) -> None:
     """Send one email through the install's SMTP server. `attachments` are (file name, content,
     MIME type). Raises ProblemError with a plain explanation when it can't be sent."""
@@ -118,7 +138,7 @@ def send(
                 " Settings → Email.",
             )
     message = EmailMessage()
-    message["From"] = formataddr((config.get("from_name") or "", config["from_address"]))
+    message["From"] = formataddr((from_name or config.get("from_name") or "", config["from_address"]))
     message["To"] = ", ".join([to] if isinstance(to, str) else to)
     message["Subject"] = subject
     message["Message-ID"] = make_msgid(domain=config["from_address"].rpartition("@")[2] or None)

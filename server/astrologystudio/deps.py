@@ -21,7 +21,7 @@ from typing import Annotated
 import httpx
 from fastapi import Cookie, Depends, Header, Request
 
-from . import secretbox
+from . import limits, secretbox
 from .accounts import SESSION_COOKIE, load_session
 from .config import Settings
 from .db import connect
@@ -107,7 +107,11 @@ def get_ephemeral(request: Request, conn: Db, person: UserPrincipal) -> Iterator
             "Enter your key in Account. Each person uses their own key.",
         )
     client = Ephemeral(
-        configured_url(conn, settings), key, transport(request), request.app.state.ephemeral_cache
+        configured_url(conn, settings),
+        key,
+        transport(request),
+        request.app.state.ephemeral_cache,
+        meter=lambda: limits.spend(conn, person.id),
     )
     try:
         yield client

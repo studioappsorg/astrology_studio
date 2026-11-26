@@ -98,6 +98,54 @@ export interface User {
   signs_in_with: 'password' | 'ephemeral';
 }
 
+/** A person as the owner sees them in Users. */
+export interface ListedUser extends User {
+  disabled: boolean;
+  disabled_at: string | null;
+  /** Only the owner sees it. */
+  disabled_reason: string | null;
+}
+
+export type Period = 'hour' | 'day' | 'week' | 'month';
+export const PERIODS: Period[] = ['hour', 'day', 'week', 'month'];
+export type Limits = Record<Period, number | null>;
+
+export interface Usage {
+  /** Whose limits apply: their own, the site's defaults, or none (the owner). */
+  source: 'own' | 'site' | 'owner';
+  time_zone: string;
+  periods: Record<Period, { used: number; limit: number | null; resets_at: string }>;
+}
+
+export interface UserDetail extends ListedUser {
+  key_prefix: string | null;
+  /** The key's own limits at ephemeralREST (read only), e.g. { per_minute: 10, per_day: 500 }. */
+  ephemeral_limits: Record<string, number> | null;
+  limits: Limits | null;
+  uses_site_defaults: boolean;
+  site_defaults: Limits;
+  usage: Usage;
+}
+
+export interface ActivityEvent {
+  id: number;
+  at: string;
+  event: string;
+  outcome: string;
+  detail: string;
+  ip: string;
+  user_agent: string;
+  failed: boolean;
+  /** In everyone's activity only. */
+  user_id?: string | null;
+  email?: string;
+}
+
+export interface ActivityPage {
+  data: ActivityEvent[];
+  next: number | null;
+}
+
 export interface Session {
   user: User;
   csrf_token: string;
@@ -110,7 +158,25 @@ export interface AuthStatus {
   password_reset?: boolean;
   /** A hosted service: ephemeralREST is kept out of sight for everyone but the owner. */
   hosted?: boolean;
+  /** "here": sign-up emails link back to this site's own pages; "portal": to ephemeralREST's. */
+  signup_flow?: 'here' | 'portal';
   user: Session | null;
+}
+
+/** Where a sign-up email was sent, and whose pages its link opens. */
+export interface SignupSent {
+  email: string;
+  flow: 'here' | 'portal';
+}
+
+/** The site key: a domain key so sign-up emails link back to this site (owner only). */
+export interface SiteKeyStatus {
+  configured: boolean;
+  prefix: string | null;
+  domain: string | null;
+  origin: string;
+  links_here: boolean;
+  reason: string | null;
 }
 
 export interface Connection {
@@ -125,6 +191,11 @@ export interface KeyStatus {
   identity?: { name?: string; identifier?: string; rate_limits?: Record<string, number> } | null;
   checked_at?: string | null;
   updated_at?: string;
+  /** After saving: "saved", or "choose" when the new key's chart list is missing `missing` of
+   * your charts (answer at /account/ephemeral-key/pending), or "cancelled". */
+  status?: 'saved' | 'choose' | 'cancelled';
+  missing?: number;
+  added?: number;
 }
 
 export interface CatalogBody {
@@ -192,6 +263,7 @@ export type DerivedKind = 'transits' | 'progressed' | 'solar_arc' | 'solar_retur
 /** A derived chart: positions like any chart, plus what it was worked out from. */
 export interface DerivedDetail extends ChartData {
   aspects: FoundAspect[];
+  sidereal_pending?: boolean;
   aspects_helio: FoundAspect[];
   kind: DerivedKind | string;
   parent_id: string | null;
@@ -231,6 +303,8 @@ export interface ChartData {
   houses: number[] | null;
   points: Record<string, Point>;
   helio: Record<string, Point>;
+  /** Tropical, or sidereal by `ayanamsa` (its `value` in degrees taken off every longitude). */
+  zodiac?: ZodiacUsed;
 }
 
 export interface FoundAspect {
@@ -269,6 +343,12 @@ export interface ProfileSummary {
   house_system: string | null;
   zodiac: 'tropical' | 'sidereal';
   ayanamsa: string;
+}
+
+export interface ZodiacUsed {
+  type: 'tropical' | 'sidereal';
+  ayanamsa: string | null;
+  value?: number | null;
 }
 
 export interface ChartDetail extends ChartData {

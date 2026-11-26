@@ -11,17 +11,23 @@
 # On a fresh Ubuntu or Debian server, this:
 #   1. installs Docker (if it isn't there),
 #   2. checks your domain points at this server,
-#   3. sets up AstrologyStudio with Caddy, which gets and renews the HTTPS certificate,
-#   4. adds a `astrologystudio` command for updates, backups and logs, and a daily backup.
+#   3. sets up the server's shared Caddy (the `studioapps` command), which every Studio app
+#      on the server uses, and which gets and renews the HTTPS certificates,
+#   4. sets up AstrologyStudio behind it,
+#   5. adds a `astrologystudio` command for updates, backups and logs, and a daily backup.
 #
-# Running it again is safe: it keeps your data and settings and updates the setup.
+# Running it again is safe: it keeps your data and settings and updates the setup. An install
+# from before 1.22.0, which ran its own Caddy, is moved onto the shared Caddy with its certificate.
 #
 # Options (all optional; you're asked for anything missing):
 #   --domain astro.example.com  the address AstrologyStudio will live at
 #   --ephemeral URL             the ephemeralREST address (can be set later in Settings)
 #   --email you@example.com     for certificate expiry notices from Let's Encrypt
-#   --dir /opt/astrologystudio  where it's installed
+#   --dir DIR                   where it's installed (default /opt/studioapps/astrologystudio;
+#                               an install from before 1.22.0 stays in /opt/astrologystudio)
 #   --image IMAGE               the AstrologyStudio container image to run
+#   --caddy-extra FILE          extra lines for its site in the shared Caddy, e.g. a tls block
+#   --edge-script FILE          use this copy of the shared Caddy's script (it's still checked)
 #   --yes                       don't ask questions (needs --domain)
 #   --skip-dns-check            don't check the domain points here
 #   --dry-run                   write the files, but don't install or start anything
@@ -47,8 +53,21 @@ trap 'printf "\nError: the installer stopped unexpectedly (line %s). Please repo
 DEFAULT_IMAGE="ghcr.io/studioappsorg/astrologystudio:latest"
 # Installs before 1.21.6 pulled from the build server's registry: moved to GitHub's, same tag.
 OLD_REGISTRY="registry.getstudioapps.com/astrologystudio"
-DEFAULT_DIR="/opt/astrologystudio"
+DEFAULT_DIR="/opt/studioapps/astrologystudio"
+OLD_DEFAULT_DIR="/opt/astrologystudio"  # installs before 1.22.0 live here, and stay here
 APP_UID=10001  # the container's astrologystudio user
+
+# The server's shared Caddy (github.com/studioappsorg/studio-edge), installed as the
+# `studioapps` command. This is the version this release was tested with: never a newer one
+# by surprise, and never one whose SHA-256 doesn't match.
+EDGE_VERSION="0.1.0"
+EDGE_SHA256="e52391e30d05f40ff1c0c42074e36c4658f9892d0be76277d058d7a6cb066bef"
+EDGE_URL="https://getstudioapps.com/edge/edge-${EDGE_VERSION}.sh"
+STUDIOAPPS=/usr/local/bin/studioapps
+EDGE_DIR="${STUDIOAPPS_EDGE_DIR:-/opt/studioapps/edge}"
+EDGE_CONTAINER="studioapps-edge"
+EDGE_IP="172.31.250.2"   # fixed by studio-edge; the app trusts forwarded addresses from here only
+SITE="astrologystudio"   # this app's site name in the shared Caddy, and its network alias prefix
 
 # Everything runs from main(), at the very end, so a half-downloaded script does nothing.
 
@@ -77,12 +96,18 @@ valid_domain() {
   [[ $1 =~ ^([a-z0-9]([a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,63}$ ]]
 }
 
-usage() { sed -n '5,27p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; }
+usage() { sed -n '5,33p' "$0" 2>/dev/null | sed 's/^# \{0,1\}//'; }
+
+edge_running() {
+  command -v docker >/dev/null 2>&1 &&
+    [ "$(docker inspect -f '{{.State.Running}}' "$EDGE_CONTAINER" 2>/dev/null || true)" = "true" ]
+}
 
 # ---------------------------------------------------------------------------
 
 parse_args() {
-  DOMAIN=""; ACME_EMAIL=""; DIR="$DEFAULT_DIR"; IMAGE=""; EPHEMERAL=""; HOSTED=""; YES=0; DRY_RUN=0; SKIP_DNS=0
+  DOMAIN=""; ACME_EMAIL=""; DIR=""; IMAGE=""; EPHEMERAL=""; HOSTED=""; CADDY_EXTRA=""; EDGE_SCRIPT=""
+  YES=0; DRY_RUN=0; SKIP_DNS=0
   while [ $# -gt 0 ]; do
     case $1 in
       --domain) DOMAIN=${2:-}; shift 2 ;;
@@ -90,6 +115,8 @@ parse_args() {
       --dir) DIR=${2:-}; shift 2 ;;
       --image) IMAGE=${2:-}; shift 2 ;;
       --ephemeral) EPHEMERAL=${2:-}; shift 2 ;;
+      --caddy-extra) CADDY_EXTRA=${2:-}; shift 2 ;;
+      --edge-script) EDGE_SCRIPT=${2:-}; shift 2 ;;
       --yes|-y) YES=1; shift ;;
       --skip-dns-check) SKIP_DNS=1; shift ;;
       --dry-run) DRY_RUN=1; shift ;;
@@ -98,6 +125,14 @@ parse_args() {
     esac
   done
   DOMAIN=$(printf '%s' "$DOMAIN" | tr '[:upper:]' '[:lower:]' | sed 's|^https\{0,1\}://||; s|/.*$||')
+  # An install from before 1.22.0 stays where it is; new installs go beside the shared Caddy.
+  if [ -z "$DIR" ]; then
+    if [ -f "$OLD_DEFAULT_DIR/.env" ]; then DIR=$OLD_DEFAULT_DIR; else DIR=$DEFAULT_DIR; fi
+  fi
+  if [ -n "$CADDY_EXTRA" ]; then
+    [ -f "$CADDY_EXTRA" ] || die "--caddy-extra: there's no file at $CADDY_EXTRA"
+    CADDY_EXTRA=$(cd "$(dirname "$CADDY_EXTRA")" && printf '%s/%s' "$PWD" "$(basename "$CADDY_EXTRA")")
+  fi
 }
 
 load_existing() {
@@ -116,6 +151,11 @@ load_existing() {
     EXISTING=1
   else
     EXISTING=0
+  fi
+  # Before 1.22.0 each install ran its own Caddy (a `caddy` service in its compose.yml).
+  OWN_CADDY=0
+  if [ "$EXISTING" -eq 1 ] && [ -f "$DIR/compose.yml" ] && grep -q '^  caddy:' "$DIR/compose.yml"; then
+    OWN_CADDY=1
   fi
   case $IMAGE in "$OLD_REGISTRY":*) IMAGE="${DEFAULT_IMAGE%:*}:${IMAGE##*:}" ;; esac
   [ -n "$IMAGE" ] || IMAGE=$DEFAULT_IMAGE
@@ -235,23 +275,45 @@ check_dns() {
   done
 }
 
+# Ports 80 and 443 belong to the server's shared Caddy, which every Studio app uses. Before
+# anything is installed, check nothing else holds them. Our own Caddy from before 1.22.0 is
+# fine: it's moved onto the shared Caddy below. The shared Caddy repeats this check itself.
 check_ports() {
   [ "$DRY_RUN" -eq 1 ] && return
-  command -v ss >/dev/null 2>&1 || return
-  local busy
-  busy=$(ss -ltnpH '( sport = :80 or sport = :443 )' 2>/dev/null | grep -v docker-proxy || true)
-  if [ -n "$busy" ]; then
-    warn "Something else is using port 80 or 443:"
-    printf '%s\n' "$busy" >&2
-    die "Stop that web server (for example: systemctl disable --now nginx apache2), then run the installer again."
+  edge_running && return
+  local busy="" others="" name project dir
+  # A web server running directly on this server.
+  if command -v ss >/dev/null 2>&1; then
+    busy=$(ss -ltnpH '( sport = :80 or sport = :443 )' 2>/dev/null | grep -v docker-proxy || true)
   fi
-}
-
-open_firewall() {
-  [ "$DRY_RUN" -eq 1 ] && return
-  if command -v ufw >/dev/null 2>&1 && ufw status 2>/dev/null | grep -q "Status: active"; then
-    ufw allow 80/tcp >/dev/null && ufw allow 443/tcp >/dev/null && ufw allow 443/udp >/dev/null
-    ok "Opened ports 80 and 443 in the firewall"
+  # Or another app's container, such as another Studio app's own Caddy from before the shared one.
+  if command -v docker >/dev/null 2>&1; then
+    others=$(for port in 80 443; do
+        docker ps --filter "publish=$port" \
+          --format '{{.Names}}|{{.Label "com.docker.compose.project"}}|{{.Label "com.docker.compose.project.working_dir"}}' 2>/dev/null
+      done | sort -u || true)
+  fi
+  local problem=0 studio_apps=" mailstudio ledgerstudio formstudio bookingstudio astrologystudio "
+  if [ -n "$busy" ]; then
+    warn "Something else is using port 80 or 443 on this server:"
+    printf '%s\n' "$busy" >&2
+    problem=1
+  fi
+  while IFS='|' read -r name project dir; do
+    [ -n "$name" ] || continue
+    [ "$dir" = "$DIR" ] && continue
+    case $studio_apps in
+      *" $project "*)
+        warn "$project's own Caddy ($name, in ${dir:-?}) is using ports 80 and 443."
+        say "Update $project with its newest installer first: that moves it onto the shared Caddy." ;;
+      *)
+        warn "The container $name (${dir:-not from docker compose}) is using ports 80 and 443." ;;
+    esac
+    problem=1
+  done <<< "$others"
+  if [ "$problem" -eq 1 ]; then
+    say "Studio apps share ports 80 and 443 through one Caddy, so nothing else can hold them."
+    die "Nothing has been changed. Stop what's using the ports (or update that app), then run this again."
   fi
 }
 
@@ -261,6 +323,7 @@ open_firewall() {
 write_env() {
   cat > "$DIR/.env" <<EOF
 # AstrologyStudio settings, read by docker compose. Edit, then run: astrologystudio restart
+# (to change the domain, run the installer again with --domain, so the shared Caddy follows)
 ASTROLOGYSTUDIO_DOMAIN=$DOMAIN
 ACME_EMAIL=$ACME_EMAIL
 ASTROLOGYSTUDIO_IMAGE=$IMAGE
@@ -272,69 +335,59 @@ EOF
 }
 
 write_compose() {
-  cat > "$DIR/compose.yml" <<'EOF'
+  cat > "$DIR/compose.yml" <<EOF
 # Written by the AstrologyStudio installer; re-running it replaces this file.
-# Your settings are in .env; your data is in ./data.
+# Your settings are in .env; your data is in ./data. The server's shared Caddy (studioapps)
+# serves it, using the site file astrologystudio.caddy beside this one.
 name: astrologystudio
 
 services:
   app:
-    image: ${ASTROLOGYSTUDIO_IMAGE}
+    image: \${ASTROLOGYSTUDIO_IMAGE}
     restart: unless-stopped
     environment:
-      ASTROLOGYSTUDIO_BASE_URL: https://${ASTROLOGYSTUDIO_DOMAIN}
-      ASTROLOGYSTUDIO_EPHEMERAL_URL: ${ASTROLOGYSTUDIO_EPHEMERAL_URL:-}
-      ASTROLOGYSTUDIO_HOSTED: ${ASTROLOGYSTUDIO_HOSTED:-}
-      # Only Caddy can reach the app, so its forwarded client addresses are trusted.
-      ASTROLOGYSTUDIO_TRUSTED_PROXIES: "*"
+      ASTROLOGYSTUDIO_BASE_URL: https://\${ASTROLOGYSTUDIO_DOMAIN}
+      ASTROLOGYSTUDIO_EPHEMERAL_URL: \${ASTROLOGYSTUDIO_EPHEMERAL_URL:-}
+      ASTROLOGYSTUDIO_HOSTED: \${ASTROLOGYSTUDIO_HOSTED:-}
+      # Forwarded client addresses are trusted from the shared Caddy only. Other apps'
+      # containers share its network, and could otherwise claim to be any address.
+      ASTROLOGYSTUDIO_TRUSTED_PROXIES: "$EDGE_IP"
     volumes:
       - ./data:/data
+    networks:
+      default: {}
+      studioapps:
+        aliases: [$SITE-app]
     logging:
       driver: local
       options:
         max-size: 10m
 
-  caddy:
-    image: caddy:2
-    restart: unless-stopped
-    depends_on:
-      - app
-    ports:
-      - "80:80"
-      - "443:443"
-      - "443:443/udp"
-    environment:
-      ASTROLOGYSTUDIO_DOMAIN: ${ASTROLOGYSTUDIO_DOMAIN}
-    volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - caddy_data:/data
-      - caddy_config:/config
-    logging:
-      driver: local
-      options:
-        max-size: 10m
-
-volumes:
-  caddy_data:
-  caddy_config:
+networks:
+  # Created by the shared Caddy. Only this service joins it.
+  studioapps:
+    external: true
 EOF
 }
 
-write_caddyfile() {
+# The site file this installer adds to the shared Caddy. Extra lines (--caddy-extra) are kept in
+# site-extra.caddy, so a re-run keeps them.
+write_site() {
+  if [ -n "$CADDY_EXTRA" ] && [ "$CADDY_EXTRA" != "$DIR/site-extra.caddy" ]; then
+    cp "$CADDY_EXTRA" "$DIR/site-extra.caddy"
+  fi
   {
-    printf '# Written by the AstrologyStudio installer. Caddy gets and renews the HTTPS certificate.\n'
-    if [ -n "$ACME_EMAIL" ]; then printf '{\n\temail %s\n}\n\n' "$ACME_EMAIL"; fi
-    cat <<'EOF'
-{$ASTROLOGYSTUDIO_DOMAIN} {
-	encode zstd gzip
-	header Strict-Transport-Security "max-age=31536000"
-	request_body {
-		max_size 5MB
-	}
-	reverse_proxy app:8080
-}
-EOF
-  } > "$DIR/Caddyfile"
+    printf '# Written by the AstrologyStudio installer (%s); re-running it replaces this file.\n' "$DIR"
+    printf '# The shared Caddy serves it: studioapps site add %s --file <this file>\n' "$SITE"
+    printf '%s {\n' "$DOMAIN"
+    printf '\timport studio %s\n' "$SITE"
+    printf '\trequest_body {\n\t\tmax_size 5MB\n\t}\n'
+    if [ -f "$DIR/site-extra.caddy" ]; then
+      sed -e '/^[[:space:]]*$/d' -e 's/^/\t/' "$DIR/site-extra.caddy"
+    fi
+    printf '\treverse_proxy %s-app:8080\n' "$SITE"
+    printf '}\n'
+  } > "$DIR/$SITE.caddy"
 }
 
 write_files() {
@@ -342,10 +395,58 @@ write_files() {
   mkdir -p "$DIR/data" "$DIR/backups"
   write_env
   write_compose
-  write_caddyfile
+  write_site
   if [ "$DRY_RUN" -eq 0 ]; then chown -R "$APP_UID:$APP_UID" "$DIR/data"; fi
   chmod 700 "$DIR/backups"
-  ok "compose.yml, Caddyfile and .env"
+  ok "compose.yml, $SITE.caddy and .env"
+}
+
+# ---------------------------------------------------------------------------
+# The shared Caddy
+
+# Keep an installed `studioapps` if it's this version or newer: another app may have put it there.
+edge_current() {
+  [ -x "$STUDIOAPPS" ] || return 1
+  local have
+  have=$("$STUDIOAPPS" version 2>/dev/null || true)
+  [ -n "$have" ] && [ "$(printf '%s\n%s\n' "$EDGE_VERSION" "$have" | sort -V | head -n 1)" = "$EDGE_VERSION" ]
+}
+
+install_edge() {
+  step "The shared Caddy"
+  if edge_current; then
+    ok "The studioapps command is installed ($("$STUDIOAPPS" version))"
+    return
+  fi
+  if [ "$DRY_RUN" -eq 1 ]; then
+    say "${dim}(dry run: would install ${EDGE_SCRIPT:-$EDGE_URL} as $STUDIOAPPS)${reset}"
+    return
+  fi
+  local fetched
+  fetched=$(mktemp)
+  if [ -n "$EDGE_SCRIPT" ]; then
+    cp "$EDGE_SCRIPT" "$fetched"
+  elif ! curl -fsSL --max-time 30 "$EDGE_URL" -o "$fetched"; then
+    rm -f "$fetched"
+    die "Couldn't download the shared Caddy's script from $EDGE_URL"
+  fi
+  if ! printf '%s  %s\n' "$EDGE_SHA256" "$fetched" | sha256sum -c --quiet - >/dev/null 2>&1; then
+    rm -f "$fetched"
+    die "The shared Caddy's script doesn't match the one this installer was tested with, so it wasn't used."
+  fi
+  install -m 0755 "$fetched" "$STUDIOAPPS"
+  rm -f "$fetched"
+  ok "Installed the studioapps command ($EDGE_VERSION)"
+}
+
+# Start the shared Caddy, or update its files. It keeps an email it already has: Let's Encrypt
+# notices are for the whole server, and another app may have set one.
+ensure_edge() {
+  local args=()
+  if [ -n "$ACME_EMAIL" ] && ! grep -qs '^ACME_EMAIL=.' "$EDGE_DIR/.env"; then
+    args=(--email "$ACME_EMAIL")
+  fi
+  "$STUDIOAPPS" edge ensure "${args[@]}"
 }
 
 install_command() {
@@ -373,13 +474,17 @@ usage() {
 Usage: astrologystudio COMMAND
 
   status                     Is it running? Shows the address and version.
-  logs [app|caddy]           Follow the logs (Ctrl+C to stop).
+  logs                       Follow AstrologyStudio's log (Ctrl+C to stop).
+  logs caddy                 Follow the server's shared Caddy's log (certificates, errors).
   update                     Get the latest version and restart. Your data is backed up first.
   backup [--keep N]          Back up the database and secret key to $ASTROLOGYSTUDIO_DIR/backups.
   restore FILE               Replace everything with a backup (asks first).
   restart | stop | start
   reset-password EMAIL       Set a new password for someone who's locked out.
   version
+
+The shared Caddy, which every Studio app on this server uses, has its own command:
+studioapps sites | edge status | edge logs astrologystudio
 USAGE
 }
 
@@ -428,7 +533,10 @@ case ${1:-help} in
     printf '\nAddress: https://%s\n' "$(domain)"
     curl -fsS --max-time 5 "https://$(domain)/api/v1/health" && echo || echo "Not answering at https://$(domain) yet."
     ;;
-  logs) shift; compose logs -f --tail 200 "$@" ;;
+  logs)
+    if [ "${2:-}" = "caddy" ]; then docker logs -f --tail 200 studioapps-edge
+    else compose logs -f --tail 200 app
+    fi ;;
   update)
     backup
     compose pull --ignore-pull-failures  # an image built on this server has nothing to pull
@@ -451,11 +559,98 @@ EOF
 
 # ---------------------------------------------------------------------------
 
+# Start the app, then give the shared Caddy its site. Returns non-zero (after saying why) if either
+# fails, so a move from the old setup can put that back.
 start() {
   step "Starting AstrologyStudio"
-  if [ "$DRY_RUN" -eq 1 ]; then say "${dim}(dry run: would run docker compose pull and up)${reset}"; return; fi
-  (cd "$DIR" && docker compose pull --quiet --ignore-pull-failures && docker compose up -d --remove-orphans) \
-    || die "Starting failed. See: cd $DIR && docker compose logs"
+  if [ "$DRY_RUN" -eq 1 ]; then say "${dim}(dry run: would run docker compose pull and up, then studioapps site add)${reset}"; return; fi
+  if ! (cd "$DIR" && docker compose pull --quiet --ignore-pull-failures && docker compose up -d --remove-orphans); then
+    warn "Starting AstrologyStudio failed. See: cd $DIR && docker compose logs"
+    return 1
+  fi
+  if ! "$STUDIOAPPS" site add "$SITE" --file "$DIR/$SITE.caddy"; then
+    warn "The shared Caddy refused AstrologyStudio's site file ($DIR/$SITE.caddy). Its message is above."
+    return 1
+  fi
+}
+
+# Before 1.22.0 AstrologyStudio ran its own Caddy. Move it onto the shared Caddy, bringing its
+# certificate (so Let's Encrypt isn't asked again), and put everything back if a step fails.
+move_to_shared_caddy() {
+  step "Moving AstrologyStudio onto the server's shared Caddy"
+  if [ "$DRY_RUN" -eq 1 ]; then
+    say "${dim}(dry run: would back up, stop its own Caddy, copy its certificates and start behind the shared Caddy)${reset}"
+    write_files
+    return
+  fi
+  local keep old certs edge_was_running=0
+  keep="$DIR/backups/before-shared-caddy-$(date +%Y%m%d-%H%M%S)"
+  mkdir -p "$keep"
+  chmod 700 "$keep"
+  cp -p "$DIR/compose.yml" "$DIR/.env" "$keep/"
+  if [ -f "$DIR/Caddyfile" ]; then cp -p "$DIR/Caddyfile" "$keep/"; fi
+  if edge_running; then edge_was_running=1; fi
+
+  # The data first, while the app is still running with the command from the old installer.
+  if [ -x /usr/local/bin/astrologystudio ] && /usr/local/bin/astrologystudio backup >/dev/null 2>&1; then
+    ok "Backed up the data to $DIR/backups"
+  else
+    warn "Couldn't make a data backup first (is AstrologyStudio running?). Its data isn't touched by this move."
+  fi
+
+  # Its certificates and Caddy's account, from the old Caddy's storage.
+  old=$(cd "$DIR" && docker compose ps -a -q caddy 2>/dev/null | head -n 1 || true)
+  certs="$keep/caddy-data"
+  if [ -n "$old" ] && docker cp "$old:/data/caddy" "$certs" >/dev/null 2>&1; then
+    ok "Copied the certificates from AstrologyStudio's own Caddy"
+  else
+    certs=""
+    warn "Couldn't copy the old Caddy's certificates: the shared Caddy will get a new one."
+  fi
+
+  # Free ports 80 and 443 for the shared Caddy.
+  (cd "$DIR" && docker compose stop caddy >/dev/null 2>&1) || true
+
+  if ! ensure_edge; then
+    put_back "$keep" "$edge_was_running" "The shared Caddy didn't start."
+  fi
+  # Into the shared Caddy's storage, never replacing anything it already has.
+  if [ -n "$certs" ]; then
+    mkdir -p "$EDGE_DIR/data/caddy"
+    tar -C "$certs" -cf - . | tar -C "$EDGE_DIR/data/caddy" --skip-old-files -xf -
+  fi
+
+  write_files
+  if ! start; then
+    put_back "$keep" "$edge_was_running" "AstrologyStudio didn't start behind the shared Caddy."
+  fi
+  rm -f "$DIR/Caddyfile"
+  ok "Moved onto the shared Caddy. The old setup is kept in $keep"
+  MOVED_FROM_OWN_CADDY=1
+}
+
+# Undo a move that failed part-way: AstrologyStudio runs with its own Caddy again, as before.
+put_back() {
+  local keep=$1 edge_was_running=$2 why=$3
+  warn "$why Putting the old setup back..."
+  if edge_running; then
+    "$STUDIOAPPS" site remove "$SITE" >/dev/null 2>&1 || true
+    if [ "$edge_was_running" -eq 0 ] && ! ls "$EDGE_DIR"/sites/*.caddy >/dev/null 2>&1; then
+      docker stop "$EDGE_CONTAINER" >/dev/null 2>&1 || true   # it started for us alone; free the ports
+    fi
+  fi
+  cp -p "$keep/compose.yml" "$keep/.env" "$DIR/"
+  if [ -f "$keep/Caddyfile" ]; then cp -p "$keep/Caddyfile" "$DIR/"; fi
+  rm -f "$DIR/$SITE.caddy"
+  if [ "$edge_was_running" -eq 0 ] && (cd "$DIR" && docker compose up -d --remove-orphans >/dev/null 2>&1); then
+    die "AstrologyStudio is running as it was before, with its own Caddy. The problem is described above."
+  fi
+  die "Couldn't put AstrologyStudio's own Caddy back. Its old files are in $DIR again, and copies are in $keep.
+Fix the problem described above, then run the installer again."
+}
+
+wait_until_answering() {
+  [ "$DRY_RUN" -eq 1 ] && return
   say "Waiting for the HTTPS certificate (usually under a minute)..."
   local i
   for i in $(seq 1 60); do
@@ -468,7 +663,7 @@ start() {
   done
   warn "AstrologyStudio started, but https://$DOMAIN isn't answering yet."
   say "Check the domain's A record, and that ports 80 and 443 are open in your provider's firewall."
-  say "Then see what Caddy says: astrologystudio logs caddy"
+  say "Then see what the shared Caddy says: astrologystudio logs caddy"
 }
 
 finish() {
@@ -482,23 +677,39 @@ finish() {
   say ""
   say "  Useful commands:  astrologystudio status | logs | update | backup"
   say "  Your data:        $DIR/data   (backed up daily to $DIR/backups)"
+  say "  Shared Caddy:     studioapps sites   (other Studio apps can share this server)"
+  if [ "$MOVED_FROM_OWN_CADDY" -eq 1 ]; then
+    say ""
+    say "  The old Caddy's storage is kept until you're happy. To remove it:"
+    say "    docker volume rm astrologystudio_caddy_data astrologystudio_caddy_config"
+  fi
   say ""
 }
 
 main() {
+  MOVED_FROM_OWN_CADDY=0
   parse_args "$@"
   load_existing
   printf '%sAstrologyStudio installer%s\n' "$bold" "$reset"
   check_system
   check_internet
   choose_domain
+  check_ports
   install_docker
   check_dns
-  check_ports
-  open_firewall
-  write_files
+  install_edge
+  if [ "$OWN_CADDY" -eq 1 ]; then
+    move_to_shared_caddy
+  else
+    if [ "$DRY_RUN" -eq 0 ]; then
+      step "Starting the shared Caddy"
+      ensure_edge || die "The shared Caddy didn't start. Its message is above."
+    fi
+    write_files
+    start || die "Nothing else on the server was changed. Fix the problem above, then run the installer again."
+  fi
   install_command
-  start
+  wait_until_answering
   finish
 }
 
